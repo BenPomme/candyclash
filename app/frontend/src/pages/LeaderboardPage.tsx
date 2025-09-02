@@ -5,7 +5,7 @@ import { api } from '../api/client'
 
 export function LeaderboardPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [timeLeft, setTimeLeft] = useState('')
@@ -76,7 +76,14 @@ export function LeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen relative py-8 px-4">
+      <button
+        onClick={logout}
+        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+      >
+        Logout
+      </button>
+      
       <div className="max-w-4xl mx-auto">
         <div className="candy-card mb-6">
           <div className="text-center mb-6">

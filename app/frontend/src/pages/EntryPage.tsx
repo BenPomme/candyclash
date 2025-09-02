@@ -5,7 +5,7 @@ import { api } from '../api/client'
 
 export function EntryPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [challenge, setChallenge] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -136,9 +136,17 @@ export function EntryPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="candy-card max-w-lg w-full">
-        <div className="text-center mb-6">
+    <div className="min-h-screen relative">
+      <button
+        onClick={logout}
+        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+      >
+        Logout
+      </button>
+      
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="candy-card max-w-lg w-full">
+          <div className="text-center mb-6">
           <div className="mb-3">
             <div className="text-sm text-gray-600">Welcome back,</div>
             <div className="text-xl font-bold text-candy-purple">
@@ -239,6 +247,7 @@ export function EntryPage() {
             Not enough Gold Bars to enter!
           </p>
         )}
+        </div>
       </div>
     </div>
   )

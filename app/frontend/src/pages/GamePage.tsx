@@ -7,7 +7,7 @@ import { createGameConfig } from '../game/config'
 export function GamePage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const gameContainerRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<Phaser.Game | null>(null)
   const gameState = location.state as any
@@ -43,7 +43,14 @@ export function GamePage() {
   }, [user, navigate, gameState])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 to-pink-100">
+    <div className="min-h-screen relative bg-gradient-to-br from-purple-100 to-pink-100">
+      <button
+        onClick={logout}
+        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors z-10"
+      >
+        Logout
+      </button>
+      
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-4">
           <h1 className="text-3xl font-candy text-candy-pink">Game In Progress</h1>
