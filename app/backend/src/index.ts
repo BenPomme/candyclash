@@ -10,7 +10,6 @@ import attemptRoutes from './attempts'
 import leaderboardRoutes from './leaderboard'
 import levelRoutes from './levels'
 import adminRoutes from './admin'
-import { connectRedis } from './redis'
 import { setupSocketHandlers } from './sockets'
 
 dotenv.config()
@@ -72,8 +71,7 @@ async function buildServer() {
 
 async function start() {
   try {
-    await connectRedis()
-    console.log('✅ Redis connected')
+    console.log('✅ Firebase Admin SDK initialized')
 
     const server = await buildServer()
     

@@ -6,7 +6,7 @@ export function GamePage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const gameContainerRef = useRef<HTMLDivElement>(null)
-  const gameRef = useRef<Phaser.Game | null>(null)
+  const gameRef = useRef<any | null>(null)
 
   useEffect(() => {
     if (!user) {

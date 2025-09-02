@@ -1,11 +1,11 @@
-import { FastifyPluginAsync, FastifyRequest } from 'fastify'
+import { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
-import jwt from 'jsonwebtoken'
-import { z } from 'zod'
-import { db } from './db'
-import { JWTPayload, LoginSchema } from './types'
+import * as jwt from 'jsonwebtoken'
+import { LoginSchema, JWTPayload } from './types'
+import { getUserByEmail, collections } from './firebase'
 import { v4 as uuidv4 } from 'uuid'
 import crypto from 'crypto'
+import * as admin from 'firebase-admin'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -17,7 +17,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h'
 
 export function generateToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+  const tokenPayload = {
+    userId: payload.userId,
+    email: payload.email,
+    isAdmin: payload.isAdmin
+  }
+  return jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
 }
 
 export function verifyToken(token: string): JWTPayload {
@@ -87,62 +92,57 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/auth/dev-login', async (request, reply) => {
     const body = LoginSchema.parse(request.body)
     
-    let user = await db
-      .selectFrom('users')
-      .selectAll()
-      .where('email', '=', body.email)
-      .executeTakeFirst()
+    let user = await getUserByEmail(body.email)
     
     if (!user) {
       const userId = uuidv4()
       const displayName = body.email.split('@')[0]
       
-      await db.transaction().execute(async (trx) => {
-        await trx
-          .insertInto('users')
-          .values({
-            id: userId,
-            email: body.email,
-            display_name: displayName,
-            gold_balance: 200,
-            is_admin: false,
-          })
-          .execute()
-        
-        await trx
-          .insertInto('transactions')
-          .values({
-            id: uuidv4(),
-            user_id: userId,
-            challenge_id: null,
-            type: 'seed',
-            amount: 200,
-            meta: { reason: 'Initial balance' },
-          })
-          .execute()
+      const batch = admin.firestore().batch()
+      
+      const userRef = collections.users.doc(userId)
+      batch.set(userRef, {
+        email: body.email,
+        display_name: displayName,
+        gold_balance: 200,
+        is_admin: false,
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
       })
       
-      user = await db
-        .selectFrom('users')
-        .selectAll()
-        .where('id', '=', userId)
-        .executeTakeFirstOrThrow()
+      const transactionRef = collections.transactions.doc()
+      batch.set(transactionRef, {
+        user_id: userId,
+        challenge_id: null,
+        type: 'seed',
+        amount: 200,
+        meta: { reason: 'Initial balance' },
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      
+      await batch.commit()
+      
+      user = await getUserByEmail(body.email)
     }
     
+    if (!user) {
+      return reply.code(500).send({ error: 'Failed to create user' })
+    }
+    
+    const userData = user as any
     const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      isAdmin: user.is_admin,
+      userId: userData.id,
+      email: userData.email,
+      isAdmin: userData.is_admin || false,
     })
     
     return reply.send({
       token,
       user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.display_name,
-        goldBalance: user.gold_balance,
-        isAdmin: user.is_admin,
+        id: userData.id,
+        email: userData.email,
+        displayName: userData.display_name,
+        goldBalance: userData.gold_balance,
+        isAdmin: userData.is_admin || false,
       },
     })
   })
@@ -152,22 +152,20 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return reply.code(401).send({ error: 'Unauthorized' })
     }
     
-    const user = await db
-      .selectFrom('users')
-      .selectAll()
-      .where('id', '=', request.user.userId)
-      .executeTakeFirst()
+    const doc = await collections.users.doc(request.user.userId).get()
+    const user = doc.exists ? { id: doc.id, ...doc.data() } : null
     
     if (!user) {
       return reply.code(404).send({ error: 'User not found' })
     }
     
+    const userData = user as any
     return reply.send({
-      id: user.id,
-      email: user.email,
-      displayName: user.display_name,
-      goldBalance: user.gold_balance,
-      isAdmin: user.is_admin,
+      id: userData.id,
+      email: userData.email,
+      displayName: userData.display_name,
+      goldBalance: userData.gold_balance,
+      isAdmin: userData.is_admin || false,
     })
   })
 }

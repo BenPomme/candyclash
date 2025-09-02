@@ -1,6 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
-import { db } from './db'
-import { redis } from './redis'
+import { collections, getPot } from './firebase'
 import dayjs from 'dayjs'
 
 const challengeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -10,41 +9,46 @@ const challengeRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const now = new Date()
-    const challenge = await db
-      .selectFrom('challenges')
-      .innerJoin('levels', 'challenges.level_id', 'levels.id')
-      .select([
-        'challenges.id',
-        'challenges.name',
-        'challenges.entry_fee',
-        'challenges.attempts_per_day',
-        'challenges.ends_at',
-        'levels.config',
-      ])
-      .where('challenges.starts_at', '<=', now)
-      .where('challenges.ends_at', '>=', now)
-      .executeTakeFirst()
+    const challengesSnapshot = await collections.challenges
+      .where('starts_at', '<=', now)
+      .where('ends_at', '>=', now)
+      .limit(1)
+      .get()
 
-    if (!challenge) {
+    if (challengesSnapshot.empty) {
       return reply.code(404).send({ error: 'No active challenge found' })
     }
 
-    const attemptCount = await db
-      .selectFrom('attempts')
-      .where('user_id', '=', request.user.userId)
-      .where('challenge_id', '=', challenge.id)
-      .where('started_at', '>=', dayjs().startOf('day').toDate())
-      .select(db.fn.count('id').as('count'))
-      .executeTakeFirst()
+    const challengeDoc = challengesSnapshot.docs[0]
+    const challenge = { id: challengeDoc.id, ...challengeDoc.data() } as any
 
-    const user = await db
-      .selectFrom('users')
-      .select('gold_balance')
-      .where('id', '=', request.user.userId)
-      .executeTakeFirstOrThrow()
+    // Get level config
+    const levelDoc = await collections.levels.doc(challenge.level_id).get()
+    const level = levelDoc.exists ? levelDoc.data() : null
 
-    const potKey = `pot:${challenge.id}:${dayjs().format('YYYYMMDD')}`
-    const pot = parseInt((await redis.get(potKey)) || '0', 10)
+    if (!level) {
+      return reply.code(404).send({ error: 'Level not found' })
+    }
+
+    // Count user's attempts today
+    const startOfDay = dayjs().startOf('day').toDate()
+    const attemptsSnapshot = await collections.attempts
+      .where('user_id', '==', request.user.userId)
+      .where('challenge_id', '==', challenge.id)
+      .where('started_at', '>=', startOfDay)
+      .get()
+
+    const attemptCount = attemptsSnapshot.size
+
+    // Get user balance
+    const userDoc = await collections.users.doc(request.user.userId).get()
+    const user = userDoc.exists ? userDoc.data() : null
+
+    if (!user) {
+      return reply.code(404).send({ error: 'User not found' })
+    }
+
+    const pot = await getPot(challenge.id)
 
     return reply.send({
       challenge: {
@@ -53,15 +57,15 @@ const challengeRoutes: FastifyPluginAsync = async (fastify) => {
         entryFee: challenge.entry_fee,
         endsAt: challenge.ends_at,
       },
-      level: challenge.config,
+      level: level.config,
       pot,
       closesAt: challenge.ends_at,
-      attemptsLeft: challenge.attempts_per_day - Number(attemptCount?.count || 0),
+      attemptsLeft: challenge.attempts_per_day - attemptCount,
       userBalance: user.gold_balance,
     })
   })
 
-  fastify.post('/api/challenge/:id/join', async (request, reply) => {
+  fastify.post('/api/challenge/:id/join', async (_request, reply) => {
     return reply.code(501).send({ error: 'Not implemented yet' })
   })
 }

@@ -1,16 +1,20 @@
 import { FastifyPluginAsync } from 'fastify'
-import { db } from './db'
+import { collections } from './firebase'
 import { CreateLevelSchema } from './types'
 import { v4 as uuidv4 } from 'uuid'
+import * as admin from 'firebase-admin'
 
 const levelRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/api/levels', async (request, reply) => {
-    const levels = await db
-      .selectFrom('levels')
-      .select(['id', 'name', 'config', 'created_at', 'updated_at'])
-      .where('is_active', '=', true)
+  fastify.get('/api/levels', async (_request, reply) => {
+    const snapshot = await collections.levels
+      .where('is_active', '==', true)
       .orderBy('created_at', 'desc')
-      .execute()
+      .get()
+
+    const levels = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
 
     return reply.send({ levels })
   })
@@ -18,17 +22,13 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/levels/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     
-    const level = await db
-      .selectFrom('levels')
-      .selectAll()
-      .where('id', '=', id)
-      .where('is_active', '=', true)
-      .executeTakeFirst()
-
-    if (!level) {
+    const doc = await collections.levels.doc(id).get()
+    
+    if (!doc.exists) {
       return reply.code(404).send({ error: 'Level not found' })
     }
 
+    const level = { id: doc.id, ...doc.data() }
     return reply.send({ level })
   })
 
@@ -40,22 +40,17 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
     const body = CreateLevelSchema.parse(request.body)
     const levelId = uuidv4()
 
-    await db
-      .insertInto('levels')
-      .values({
-        id: levelId,
-        name: body.name,
-        config: body.config as any,
-        created_by: request.user.userId,
-        is_active: true,
-      })
-      .execute()
+    await collections.levels.doc(levelId).set({
+      name: body.name,
+      config: body.config,
+      created_by: request.user.userId,
+      is_active: true,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    })
 
-    const level = await db
-      .selectFrom('levels')
-      .selectAll()
-      .where('id', '=', levelId)
-      .executeTakeFirstOrThrow()
+    const doc = await collections.levels.doc(levelId).get()
+    const level = { id: doc.id, ...doc.data() }
 
     return reply.code(201).send({ level })
   })
@@ -68,26 +63,19 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
     const body = CreateLevelSchema.parse(request.body)
 
-    await db
-      .updateTable('levels')
-      .set({
-        name: body.name,
-        config: body.config as any,
-        updated_at: new Date(),
-      })
-      .where('id', '=', id)
-      .execute()
+    await collections.levels.doc(id).update({
+      name: body.name,
+      config: body.config,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    })
 
-    const level = await db
-      .selectFrom('levels')
-      .selectAll()
-      .where('id', '=', id)
-      .executeTakeFirst()
-
-    if (!level) {
+    const doc = await collections.levels.doc(id).get()
+    
+    if (!doc.exists) {
       return reply.code(404).send({ error: 'Level not found' })
     }
 
+    const level = { id: doc.id, ...doc.data() }
     return reply.send({ level })
   })
 
@@ -98,16 +86,14 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { id } = request.params as { id: string }
 
-    await db
-      .updateTable('levels')
-      .set({ is_active: false })
-      .where('id', '=', id)
-      .execute()
+    await collections.levels.doc(id).update({
+      is_active: false
+    })
 
     return reply.send({ success: true })
   })
 
-  fastify.post('/api/levels/:id/test', async (request, reply) => {
+  fastify.post('/api/levels/:id/test', async (_request, reply) => {
     return reply.code(501).send({ error: 'Not implemented yet' })
   })
 }
