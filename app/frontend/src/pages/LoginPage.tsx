@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -22,7 +23,7 @@ export function LoginPage() {
     setError('')
 
     try {
-      await login(email)
+      await login(email, displayName)
       navigate('/entry')
     } catch (err) {
       setError('Failed to login. Please try again.')
@@ -52,6 +53,20 @@ export function LoginPage() {
               required
               className="w-full px-4 py-2 border-2 border-candy-pink rounded-lg focus:outline-none focus:border-candy-orange"
               placeholder="player@example.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+              Display Name (Optional)
+            </label>
+            <input
+              type="text"
+              id="name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full px-4 py-2 border-2 border-candy-pink rounded-lg focus:outline-none focus:border-candy-orange"
+              placeholder="CandyMaster"
             />
           </div>
 

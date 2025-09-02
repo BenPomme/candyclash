@@ -97,7 +97,8 @@ const authPlugin: any = async (fastify: any) => {
     
     if (!user) {
       const userId = uuidv4()
-      const displayName = body.email.split('@')[0]
+      // Use provided displayName or default to email prefix
+      const displayName = body.displayName || body.email.split('@')[0]
       
       // Create user and initial transaction
       const userRef = collections.users.doc(userId)
@@ -119,6 +120,13 @@ const authPlugin: any = async (fastify: any) => {
         created_at: new Date(),
       })
       
+      user = await getUserByEmail(body.email)
+    } else if (body.displayName && body.displayName !== user.display_name) {
+      // Update existing user's display name if provided and different
+      const userData = user as any
+      await collections.users.doc(userData.id).update({
+        display_name: body.displayName
+      })
       user = await getUserByEmail(body.email)
     }
     

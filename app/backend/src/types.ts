@@ -108,6 +108,7 @@ interface LevelConfig {
 
 const LoginSchema = z.object({
   email: z.string().email(),
+  displayName: z.string().optional(),
 })
 
 const JoinChallengeSchema = z.object({

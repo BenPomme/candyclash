@@ -27,7 +27,34 @@ export function EntryPage() {
 
     const updateCountdown = () => {
       const now = new Date()
-      const endTime = new Date(challenge.closesAt || challenge.challenge?.endsAt)
+      
+      // Handle different date formats from Firebase
+      let endTimeValue = challenge.closesAt || challenge.challenge?.endsAt
+      let endTime: Date
+      
+      if (!endTimeValue) {
+        setTimeRemaining('No end time set')
+        return
+      }
+      
+      // Handle Firestore timestamp format
+      if (endTimeValue._seconds) {
+        endTime = new Date(endTimeValue._seconds * 1000)
+      } else if (endTimeValue.seconds) {
+        endTime = new Date(endTimeValue.seconds * 1000)
+      } else if (typeof endTimeValue === 'string') {
+        endTime = new Date(endTimeValue)
+      } else {
+        endTime = new Date(endTimeValue)
+      }
+      
+      // Check if date is valid
+      if (isNaN(endTime.getTime())) {
+        // If invalid, try to set it to end of today
+        endTime = new Date()
+        endTime.setHours(23, 59, 59, 999)
+      }
+      
       const diff = endTime.getTime() - now.getTime()
 
       if (diff <= 0) {
@@ -49,6 +76,7 @@ export function EntryPage() {
   const loadChallenge = async () => {
     try {
       const data = await api.challenge.getToday()
+      console.log('Challenge data:', data) // Debug log
       setChallenge(data)
     } catch (err) {
       setError('No active challenge available')
@@ -111,6 +139,13 @@ export function EntryPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="candy-card max-w-lg w-full">
         <div className="text-center mb-6">
+          <div className="mb-3">
+            <div className="text-sm text-gray-600">Welcome back,</div>
+            <div className="text-xl font-bold text-candy-purple">
+              {user?.displayName || user?.email}
+            </div>
+          </div>
+          
           <h1 className="text-3xl font-candy text-candy-pink mb-2">
             {challenge?.challenge.name || 'Daily Challenge'}
           </h1>

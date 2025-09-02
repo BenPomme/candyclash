@@ -14,7 +14,7 @@ interface AuthState {
   user: User | null
   token: string | null
   isLoading: boolean
-  login: (email: string) => Promise<void>
+  login: (email: string, displayName?: string) => Promise<void>
   logout: () => void
   checkAuth: () => Promise<void>
   updateBalance: (newBalance: number) => void
@@ -27,10 +27,10 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isLoading: false,
 
-      login: async (email: string) => {
+      login: async (email: string, displayName?: string) => {
         set({ isLoading: true })
         try {
-          const response = await api.auth.login(email)
+          const response = await api.auth.login(email, displayName)
           set({
             user: response.user,
             token: response.token,

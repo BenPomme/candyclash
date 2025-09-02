@@ -39,8 +39,8 @@ class ApiClient {
   }
 
   auth = {
-    login: async (email: string) => {
-      const response = await this.client.post('/auth/dev-login', { email })
+    login: async (email: string, displayName?: string) => {
+      const response = await this.client.post('/auth/dev-login', { email, displayName })
       return response.data
     },
     me: async () => {
