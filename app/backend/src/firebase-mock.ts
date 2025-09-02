@@ -8,55 +8,67 @@ const mockData: any = {
   boosters: new Map(),
 }
 
-// Initialize with a default challenge
-const defaultChallenge = {
-  id: 'daily-challenge',
-  name: 'Daily Clash',
-  level_id: 'default-level',
-  entry_fee: 20,
-  attempts_per_day: 2,
-  starts_at: new Date(new Date().setHours(0, 0, 0, 0)),
-  ends_at: new Date(new Date().setHours(23, 59, 59, 999)),
-  rake_bps: 0,
+// Initialize with default data synchronously
+function initializeDefaultData() {
+  // Create default level
+  const levelId = 'default-level'
+  mockData.levels.set(levelId, {
+    name: 'Classic Match-3',
+    config: {
+      grid: {
+        width: 8,
+        height: 8,
+      },
+      objectives: {
+        primary: {
+          type: 'collect',
+          target: 'yellow',
+          count: 100,
+        },
+        timeLimit: 180,
+      },
+      candies: {
+        colors: ['red', 'blue', 'green', 'yellow', 'purple'],
+      },
+      difficulty: {
+        entryFee: 20,
+        attemptsPerDay: 2,
+        prizeDistribution: {
+          '1st': 40,
+          '2nd': 25,
+          '3rd': 15,
+        },
+      },
+    },
+    created_by: 'system',
+    is_active: true,
+    created_at: new Date(),
+    updated_at: new Date(),
+  })
+  
+  // Create daily challenge
+  const challengeId = 'daily-challenge'
+  const now = new Date()
+  const startOfDay = new Date(now)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(now)
+  endOfDay.setHours(23, 59, 59, 999)
+  
+  mockData.challenges.set(challengeId, {
+    name: 'Daily Clash',
+    level_id: levelId,
+    entry_fee: 20,
+    attempts_per_day: 2,
+    starts_at: startOfDay,
+    ends_at: endOfDay,
+    rake_bps: 0,
+  })
+  
+  console.log('📦 Mock data initialized with default challenge and level')
 }
-mockData.challenges.set(defaultChallenge.id, defaultChallenge)
 
-// Initialize with a default level
-const defaultLevel = {
-  id: 'default-level',
-  name: 'Classic Match-3',
-  config: {
-    grid: {
-      width: 8,
-      height: 8,
-    },
-    objectives: {
-      primary: {
-        type: 'collect',
-        target: 'yellow',
-        count: 100,
-      },
-      timeLimit: 180,
-    },
-    candies: {
-      colors: ['red', 'blue', 'green', 'yellow', 'purple'],
-    },
-    difficulty: {
-      entryFee: 20,
-      attemptsPerDay: 2,
-      prizeDistribution: {
-        '1st': 40,
-        '2nd': 25,
-        '3rd': 15,
-      },
-    },
-  },
-  created_by: 'system',
-  is_active: true,
-  created_at: new Date(),
-  updated_at: new Date(),
-}
-mockData.levels.set(defaultLevel.id, defaultLevel)
+// Initialize immediately
+initializeDefaultData()
 
 const mockLeaderboard = new Map()
 const mockPots = new Map()
@@ -101,21 +113,36 @@ class MockCollection {
   }
 
   where(field: string, op: string, value: any) {
-    return {
-      where: (field2: string, op2: string, value2: any) => this.where(field, op, value).where(field2, op2, value2),
-      limit: (n: number) => this.where(field, op, value),
-      orderBy: (field: string, direction?: string) => this.where(field, op, value),
+    const self = this
+    const filters: any[] = [{ field, op, value }]
+    
+    const queryObj: any = {
+      where: (field2: string, op2: string, value2: any) => {
+        filters.push({ field: field2, op: op2, value: value2 })
+        return queryObj
+      },
+      limit: (n: number) => queryObj,
+      orderBy: (fieldName: string, direction?: string) => queryObj,
       get: async () => {
         const docs: any[] = []
-        this.data.forEach((doc, id) => {
-          let match = false
-          const fieldValue = doc[field]
-
-          if (op === '==' && fieldValue === value) match = true
-          if (op === '<=' && fieldValue <= value) match = true
-          if (op === '>=' && fieldValue >= value) match = true
-          if (op === '<' && fieldValue < value) match = true
-          if (op === '>' && fieldValue > value) match = true
+        self.data.forEach((doc, id) => {
+          let match = true
+          
+          for (const filter of filters) {
+            const fieldValue = doc[filter.field]
+            let filterMatch = false
+            
+            if (filter.op === '==' && fieldValue === filter.value) filterMatch = true
+            if (filter.op === '<=' && fieldValue <= filter.value) filterMatch = true
+            if (filter.op === '>=' && fieldValue >= filter.value) filterMatch = true
+            if (filter.op === '<' && fieldValue < filter.value) filterMatch = true
+            if (filter.op === '>' && fieldValue > filter.value) filterMatch = true
+            
+            if (!filterMatch) {
+              match = false
+              break
+            }
+          }
 
           if (match) {
             docs.push({
@@ -132,6 +159,8 @@ class MockCollection {
         }
       },
     }
+    
+    return queryObj
   }
 
   orderBy(field: string, direction = 'asc') {
