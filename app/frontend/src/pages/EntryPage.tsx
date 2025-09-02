@@ -35,10 +35,17 @@ export function EntryPage() {
 
     try {
       setIsLoading(true)
-      await api.challenge.join(challenge.challenge.id)
-      navigate('/game')
-    } catch (err) {
-      setError('Failed to join challenge')
+      const joinResponse = await api.challenge.join(challenge.challenge.id)
+      navigate('/game', {
+        state: {
+          attemptId: joinResponse.attemptId,
+          attemptToken: joinResponse.attemptToken,
+          challengeId: challenge.challenge.id,
+          level: challenge.level
+        }
+      })
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to join challenge')
       setIsLoading(false)
     }
   }

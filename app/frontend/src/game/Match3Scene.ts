@@ -1,0 +1,414 @@
+import Phaser from 'phaser'
+import { api } from '../api/client'
+
+interface Candy extends Phaser.GameObjects.Sprite {
+  row: number
+  col: number
+  candyType: string
+}
+
+export class Match3Scene extends Phaser.Scene {
+  private grid: (Candy | null)[][] = []
+  private gridWidth = 8
+  private gridHeight = 8
+  private tileSize = 64
+  private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple']
+  private selectedCandy: Candy | null = null
+  private canMove = true
+  private score = 0
+  private collected: Record<string, number> = {}
+  private targetCount = 100
+  private targetType = 'yellow'
+  private moveCount = 0
+  private startTime = 0
+  private timerText!: Phaser.GameObjects.Text
+  private scoreText!: Phaser.GameObjects.Text
+  private progressText!: Phaser.GameObjects.Text
+  private attemptId: string = ''
+  private attemptToken: string = ''
+
+  constructor() {
+    super({ key: 'Match3Scene' })
+  }
+
+  init(data: { attemptId: string; attemptToken: string; targetType: string; targetCount: number }) {
+    this.attemptId = data.attemptId
+    this.attemptToken = data.attemptToken
+    this.targetType = data.targetType || 'yellow'
+    this.targetCount = data.targetCount || 100
+    this.startTime = Date.now()
+    this.collected = { red: 0, blue: 0, green: 0, yellow: 0, purple: 0 }
+  }
+
+  preload() {
+    // Create simple colored squares for candies
+    this.candyTypes.forEach(color => {
+      this.load.image(color, `data:image/svg+xml;base64,${btoa(`
+        <svg width="60" height="60" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="60" rx="10" fill="${color}" stroke="#333" stroke-width="2"/>
+        </svg>
+      `)}`)
+    })
+  }
+
+  create() {
+    // Center the game board
+    const boardX = (this.cameras.main.width - this.gridWidth * this.tileSize) / 2
+    const boardY = 100
+
+    // Create background
+    this.add.rectangle(
+      this.cameras.main.width / 2,
+      this.cameras.main.height / 2,
+      this.cameras.main.width,
+      this.cameras.main.height,
+      0x1a1a2e
+    )
+
+    // Create game board background
+    this.add.rectangle(
+      boardX + (this.gridWidth * this.tileSize) / 2,
+      boardY + (this.gridHeight * this.tileSize) / 2,
+      this.gridWidth * this.tileSize + 10,
+      this.gridHeight * this.tileSize + 10,
+      0x16213e
+    )
+
+    // Initialize grid
+    for (let row = 0; row < this.gridHeight; row++) {
+      this.grid[row] = []
+      for (let col = 0; col < this.gridWidth; col++) {
+        this.grid[row][col] = null
+      }
+    }
+
+    // Fill grid with initial candies
+    this.fillGrid(boardX, boardY)
+
+    // Remove initial matches
+    while (this.findAllMatches().length > 0) {
+      this.removeMatches()
+      this.fillGrid(boardX, boardY)
+    }
+
+    // Create UI
+    this.createUI()
+
+    // Enable input
+    this.enableInput(boardX, boardY)
+  }
+
+  private createUI() {
+    const style = { fontSize: '24px', color: '#ffffff', fontFamily: 'Arial' }
+    
+    // Timer
+    this.timerText = this.add.text(20, 20, 'Time: 0:00', style)
+    
+    // Score
+    this.scoreText = this.add.text(20, 50, 'Moves: 0', style)
+    
+    // Progress
+    this.progressText = this.add.text(
+      20,
+      80,
+      `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: 0/${this.targetCount}`,
+      { ...style, color: this.targetType }
+    )
+  }
+
+  private fillGrid(boardX: number, boardY: number) {
+    for (let row = 0; row < this.gridHeight; row++) {
+      for (let col = 0; col < this.gridWidth; col++) {
+        if (!this.grid[row][col]) {
+          const candyType = Phaser.Math.RND.pick(this.candyTypes)
+          const candy = this.createCandy(row, col, candyType, boardX, boardY)
+          this.grid[row][col] = candy
+        }
+      }
+    }
+  }
+
+  private createCandy(row: number, col: number, type: string, boardX: number, boardY: number): Candy {
+    const x = boardX + col * this.tileSize + this.tileSize / 2
+    const y = boardY + row * this.tileSize + this.tileSize / 2
+    
+    const candy = this.add.sprite(x, y, type) as Candy
+    candy.row = row
+    candy.col = col
+    candy.candyType = type
+    candy.setInteractive()
+    candy.setScale(1)
+    
+    return candy
+  }
+
+  private enableInput(boardX: number, boardY: number) {
+    this.input.on('gameobjectdown', (_pointer: Phaser.Input.Pointer, gameObject: Candy) => {
+      if (!this.canMove) return
+      
+      if (!this.selectedCandy) {
+        this.selectedCandy = gameObject
+        gameObject.setScale(1.2)
+      } else {
+        // Check if adjacent
+        const rowDiff = Math.abs(this.selectedCandy.row - gameObject.row)
+        const colDiff = Math.abs(this.selectedCandy.col - gameObject.col)
+        
+        if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+          this.swapCandies(this.selectedCandy, gameObject, boardX, boardY)
+        }
+        
+        this.selectedCandy.setScale(1)
+        this.selectedCandy = null
+      }
+    })
+  }
+
+  private async swapCandies(candy1: Candy, candy2: Candy, boardX: number, boardY: number) {
+    this.canMove = false
+    this.moveCount++
+    
+    // Swap positions in grid
+    this.grid[candy1.row][candy1.col] = candy2
+    this.grid[candy2.row][candy2.col] = candy1
+    
+    // Swap row/col properties
+    const tempRow = candy1.row
+    const tempCol = candy1.col
+    candy1.row = candy2.row
+    candy1.col = candy2.col
+    candy2.row = tempRow
+    candy2.col = tempCol
+    
+    // Animate swap
+    const duration = 200
+    this.tweens.add({
+      targets: candy1,
+      x: boardX + candy1.col * this.tileSize + this.tileSize / 2,
+      y: boardY + candy1.row * this.tileSize + this.tileSize / 2,
+      duration
+    })
+    
+    this.tweens.add({
+      targets: candy2,
+      x: boardX + candy2.col * this.tileSize + this.tileSize / 2,
+      y: boardY + candy2.row * this.tileSize + this.tileSize / 2,
+      duration,
+      onComplete: () => {
+        const matches = this.findAllMatches()
+        if (matches.length > 0) {
+          this.handleMatches(matches, boardX, boardY)
+        } else {
+          // Swap back if no matches
+          this.swapBack(candy1, candy2, boardX, boardY)
+        }
+      }
+    })
+  }
+
+  private swapBack(candy1: Candy, candy2: Candy, boardX: number, boardY: number) {
+    // Swap positions in grid back
+    this.grid[candy1.row][candy1.col] = candy2
+    this.grid[candy2.row][candy2.col] = candy1
+    
+    // Swap row/col properties back
+    const tempRow = candy1.row
+    const tempCol = candy1.col
+    candy1.row = candy2.row
+    candy1.col = candy2.col
+    candy2.row = tempRow
+    candy2.col = tempCol
+    
+    // Animate swap back
+    const duration = 200
+    this.tweens.add({
+      targets: candy1,
+      x: boardX + candy1.col * this.tileSize + this.tileSize / 2,
+      y: boardY + candy1.row * this.tileSize + this.tileSize / 2,
+      duration
+    })
+    
+    this.tweens.add({
+      targets: candy2,
+      x: boardX + candy2.col * this.tileSize + this.tileSize / 2,
+      y: boardY + candy2.row * this.tileSize + this.tileSize / 2,
+      duration,
+      onComplete: () => {
+        this.canMove = true
+      }
+    })
+  }
+
+  private findAllMatches(): Candy[] {
+    const matches: Candy[] = []
+    const processed = new Set<Candy>()
+    
+    // Check horizontal matches
+    for (let row = 0; row < this.gridHeight; row++) {
+      for (let col = 0; col < this.gridWidth - 2; col++) {
+        const candy1 = this.grid[row][col]
+        const candy2 = this.grid[row][col + 1]
+        const candy3 = this.grid[row][col + 2]
+        
+        if (candy1 && candy2 && candy3 && 
+            candy1.candyType === candy2.candyType && 
+            candy2.candyType === candy3.candyType) {
+          
+          if (!processed.has(candy1)) {
+            matches.push(candy1)
+            processed.add(candy1)
+          }
+          if (!processed.has(candy2)) {
+            matches.push(candy2)
+            processed.add(candy2)
+          }
+          if (!processed.has(candy3)) {
+            matches.push(candy3)
+            processed.add(candy3)
+          }
+        }
+      }
+    }
+    
+    // Check vertical matches
+    for (let row = 0; row < this.gridHeight - 2; row++) {
+      for (let col = 0; col < this.gridWidth; col++) {
+        const candy1 = this.grid[row][col]
+        const candy2 = this.grid[row + 1][col]
+        const candy3 = this.grid[row + 2][col]
+        
+        if (candy1 && candy2 && candy3 && 
+            candy1.candyType === candy2.candyType && 
+            candy2.candyType === candy3.candyType) {
+          
+          if (!processed.has(candy1)) {
+            matches.push(candy1)
+            processed.add(candy1)
+          }
+          if (!processed.has(candy2)) {
+            matches.push(candy2)
+            processed.add(candy2)
+          }
+          if (!processed.has(candy3)) {
+            matches.push(candy3)
+            processed.add(candy3)
+          }
+        }
+      }
+    }
+    
+    return matches
+  }
+
+  private handleMatches(matches: Candy[], boardX: number, boardY: number) {
+    // Count collected candies
+    matches.forEach(candy => {
+      this.collected[candy.candyType] = (this.collected[candy.candyType] || 0) + 1
+      this.score += 10
+    })
+    
+    // Remove matched candies
+    matches.forEach(candy => {
+      this.grid[candy.row][candy.col] = null
+      candy.destroy()
+    })
+    
+    // Drop candies down
+    this.dropCandies(boardX, boardY)
+    
+    // Fill empty spaces
+    setTimeout(() => {
+      this.fillGrid(boardX, boardY)
+      
+      // Check for new matches
+      const newMatches = this.findAllMatches()
+      if (newMatches.length > 0) {
+        this.handleMatches(newMatches, boardX, boardY)
+      } else {
+        this.canMove = true
+        this.checkWinCondition()
+      }
+    }, 300)
+  }
+
+  private dropCandies(_boardX: number, boardY: number) {
+    for (let col = 0; col < this.gridWidth; col++) {
+      let emptyRow = this.gridHeight - 1
+      
+      for (let row = this.gridHeight - 1; row >= 0; row--) {
+        if (this.grid[row][col]) {
+          if (row !== emptyRow) {
+            const candy = this.grid[row][col]!
+            this.grid[emptyRow][col] = candy
+            this.grid[row][col] = null
+            candy.row = emptyRow
+            
+            this.tweens.add({
+              targets: candy,
+              y: boardY + emptyRow * this.tileSize + this.tileSize / 2,
+              duration: 200
+            })
+          }
+          emptyRow--
+        }
+      }
+    }
+  }
+
+  private removeMatches() {
+    const matches = this.findAllMatches()
+    matches.forEach(candy => {
+      this.grid[candy.row][candy.col] = null
+      candy.destroy()
+    })
+  }
+
+  private async checkWinCondition() {
+    const targetCollected = this.collected[this.targetType] || 0
+    
+    if (targetCollected >= this.targetCount) {
+      const timeMs = Date.now() - this.startTime
+      
+      // Complete attempt
+      try {
+        await api.attempt.complete(this.attemptId, {
+          timeMs,
+          collected: this.collected,
+          moves: this.moveCount,
+          attemptToken: this.attemptToken
+        })
+        
+        // Show success and return to main menu
+        this.add.text(
+          this.cameras.main.width / 2,
+          this.cameras.main.height / 2,
+          'LEVEL COMPLETE!',
+          { fontSize: '48px', color: '#00ff00', fontFamily: 'Arial' }
+        ).setOrigin(0.5)
+        
+        setTimeout(() => {
+          window.location.href = '/leaderboard'
+        }, 2000)
+      } catch (error) {
+        console.error('Failed to complete attempt:', error)
+      }
+    }
+  }
+
+  update() {
+    // Update timer
+    const elapsed = Date.now() - this.startTime
+    const minutes = Math.floor(elapsed / 60000)
+    const seconds = Math.floor((elapsed % 60000) / 1000)
+    this.timerText.setText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`)
+    
+    // Update score
+    this.scoreText.setText(`Moves: ${this.moveCount}`)
+    
+    // Update progress
+    const targetCollected = this.collected[this.targetType] || 0
+    this.progressText.setText(
+      `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: ${targetCollected}/${this.targetCount}`
+    )
+  }
+}

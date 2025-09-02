@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://candyclash-85fd4.web.app' : 'http://localhost:8080')
 
 class ApiClient {
   private client: AxiosInstance
