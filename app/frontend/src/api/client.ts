@@ -35,22 +35,22 @@ class ApiClient {
 
   auth = {
     login: async (email: string) => {
-      const response = await this.client.post('/auth/dev-login', { email })
+      const response = await this.client.post('/api/auth/dev-login', { email })
       return response.data
     },
     me: async () => {
-      const response = await this.client.get('/me')
+      const response = await this.client.get('/api/me')
       return response.data
     },
   }
 
   challenge = {
     getToday: async () => {
-      const response = await this.client.get('/challenge/today')
+      const response = await this.client.get('/api/challenge/today')
       return response.data
     },
     join: async (challengeId: string) => {
-      const response = await this.client.post(`/challenge/${challengeId}/join`)
+      const response = await this.client.post(`/api/challenge/${challengeId}/join`)
       return response.data
     },
   }
@@ -65,60 +65,60 @@ class ApiClient {
         attemptToken: string
       },
     ) => {
-      const response = await this.client.post(`/attempt/${attemptId}/complete`, data)
+      const response = await this.client.post(`/api/attempt/${attemptId}/complete`, data)
       return response.data
     },
   }
 
   leaderboard = {
     get: async (challengeId: string, limit = 50) => {
-      const response = await this.client.get(`/leaderboard/${challengeId}?limit=${limit}`)
+      const response = await this.client.get(`/api/leaderboard/${challengeId}?limit=${limit}`)
       return response.data
     },
   }
 
   levels = {
     list: async () => {
-      const response = await this.client.get('/levels')
+      const response = await this.client.get('/api/levels')
       return response.data
     },
     get: async (levelId: string) => {
-      const response = await this.client.get(`/levels/${levelId}`)
+      const response = await this.client.get(`/api/levels/${levelId}`)
       return response.data
     },
     create: async (data: any) => {
-      const response = await this.client.post('/levels', data)
+      const response = await this.client.post('/api/levels', data)
       return response.data
     },
     update: async (levelId: string, data: any) => {
-      const response = await this.client.put(`/levels/${levelId}`, data)
+      const response = await this.client.put(`/api/levels/${levelId}`, data)
       return response.data
     },
     delete: async (levelId: string) => {
-      const response = await this.client.delete(`/levels/${levelId}`)
+      const response = await this.client.delete(`/api/levels/${levelId}`)
       return response.data
     },
     test: async (levelId: string) => {
-      const response = await this.client.post(`/levels/${levelId}/test`)
+      const response = await this.client.post(`/api/levels/${levelId}/test`)
       return response.data
     },
   }
 
   admin = {
     closeChallenge: async (challengeId: string) => {
-      const response = await this.client.post(`/admin/challenge/close`, { id: challengeId })
+      const response = await this.client.post(`/api/admin/challenge/close`, { id: challengeId })
       return response.data
     },
     createChallenge: async (data: any) => {
-      const response = await this.client.post('/admin/challenge/create', data)
+      const response = await this.client.post('/api/admin/challenge/create', data)
       return response.data
     },
     getDashboard: async () => {
-      const response = await this.client.get('/admin/dashboard')
+      const response = await this.client.get('/api/admin/dashboard')
       return response.data
     },
     reset: async () => {
-      const response = await this.client.post('/admin/reset')
+      const response = await this.client.post('/api/admin/reset')
       return response.data
     },
   }

@@ -1,6 +1,4 @@
-import { FastifyPluginAsync } from 'fastify'
-
-const adminRoutes: FastifyPluginAsync = async (fastify) => {
+const adminRoutes: any = async (fastify: any) => {
   fastify.post('/api/admin/challenge/close', async (request, reply) => {
     if (!request.user?.isAdmin) {
       return reply.code(403).send({ error: 'Admin access required' })
@@ -30,4 +28,5 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   })
 }
 
-export default adminRoutes
+module.exports = { default: adminRoutes }
+export {}

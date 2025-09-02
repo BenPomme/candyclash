@@ -1,7 +1,6 @@
-import { Server, Socket } from 'socket.io'
-import { verifyToken } from './auth'
+const { verifyToken } = require('./auth')
 
-export function setupSocketHandlers(io: Server) {
+function setupSocketHandlers(io: any) {
   const attemptNamespace = io.of('/attempt')
 
   attemptNamespace.use(async (socket, next) => {
@@ -19,7 +18,7 @@ export function setupSocketHandlers(io: Server) {
     }
   })
 
-  attemptNamespace.on('connection', (socket: Socket) => {
+  attemptNamespace.on('connection', (socket: any) => {
     console.log(`User ${socket.data.user.userId} connected to attempt namespace`)
 
     socket.on('join-attempt', async (data: { attemptId: string; attemptToken: string }) => {
@@ -44,3 +43,6 @@ export function setupSocketHandlers(io: Server) {
     })
   })
 }
+
+module.exports = { setupSocketHandlers }
+export {}

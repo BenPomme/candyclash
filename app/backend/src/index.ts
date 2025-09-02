@@ -1,38 +1,24 @@
-import Fastify from 'fastify'
-import cors from '@fastify/cors'
-import helmet from '@fastify/helmet'
-import rateLimit from '@fastify/rate-limit'
-import { Server } from 'socket.io'
-import dotenv from 'dotenv'
-import authPlugin from './auth'
-import challengeRoutes from './challenge'
-import attemptRoutes from './attempts'
-import leaderboardRoutes from './leaderboard'
-import levelRoutes from './levels'
-import adminRoutes from './admin'
-import { setupSocketHandlers } from './sockets'
+const functions = require('firebase-functions')
+const Fastify = require('fastify')
+const cors = require('@fastify/cors')
+const helmet = require('@fastify/helmet')
+const rateLimit = require('@fastify/rate-limit')
+const authPlugin = require('./auth').default
+const challengeRoutes = require('./challenge').default
+const attemptRoutes = require('./attempts').default
+const leaderboardRoutes = require('./leaderboard').default
+const levelRoutes = require('./levels').default
+const adminRoutes = require('./admin').default
 
-dotenv.config()
+// const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'https://candyclash-85fd4.web.app'
 
-const PORT = parseInt(process.env.PORT || '8080', 10)
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000'
-
-async function buildServer() {
+async function buildApp() {
   const fastify = Fastify({
-    logger: {
-      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-        },
-      },
-    },
+    logger: false,
   })
 
   await fastify.register(cors, {
-    origin: FRONTEND_ORIGIN,
+    origin: true,
     credentials: true,
   })
 
@@ -56,32 +42,19 @@ async function buildServer() {
     return { status: 'ok', timestamp: new Date().toISOString() }
   })
 
-  const io = new Server(fastify.server, {
-    cors: {
-      origin: FRONTEND_ORIGIN,
-      credentials: true,
-    },
-    path: '/socket.io/',
-  })
-
-  setupSocketHandlers(io)
-
   return fastify
 }
 
-async function start() {
-  try {
-    console.log('✅ Firebase Admin SDK initialized')
+let app: any
 
-    const server = await buildServer()
-    
-    await server.listen({ port: PORT, host: '0.0.0.0' })
-    console.log(`✅ Server listening on port ${PORT}`)
-    console.log(`✅ Frontend origin: ${FRONTEND_ORIGIN}`)
-  } catch (err) {
-    console.error('❌ Failed to start server:', err)
-    process.exit(1)
+exports.api = functions.https.onRequest(async (req, res) => {
+  if (!app) {
+    const fastify = await buildApp()
+    await fastify.ready()
+    app = fastify
   }
-}
+  
+  app.server.emit('request', req, res)
+})
 
-start()
+export {}

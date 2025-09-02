@@ -1,6 +1,6 @@
-import { z } from 'zod'
+const { z } = require('zod')
 
-export interface Database {
+interface Database {
   users: UsersTable
   levels: LevelsTable
   challenges: ChallengesTable
@@ -9,7 +9,7 @@ export interface Database {
   boosters: BoostersTable
 }
 
-export interface UsersTable {
+interface UsersTable {
   id: string
   email: string
   display_name: string | null
@@ -18,7 +18,7 @@ export interface UsersTable {
   is_admin: boolean
 }
 
-export interface LevelsTable {
+interface LevelsTable {
   id: string
   name: string
   config: LevelConfig
@@ -28,7 +28,7 @@ export interface LevelsTable {
   is_active: boolean
 }
 
-export interface ChallengesTable {
+interface ChallengesTable {
   id: string
   name: string
   level_id: string
@@ -39,7 +39,7 @@ export interface ChallengesTable {
   rake_bps: number
 }
 
-export interface AttemptsTable {
+interface AttemptsTable {
   id: string
   user_id: string
   challenge_id: string
@@ -52,7 +52,7 @@ export interface AttemptsTable {
   moves_made: number | null
 }
 
-export interface TransactionsTable {
+interface TransactionsTable {
   id: string
   user_id: string
   challenge_id: string | null
@@ -62,7 +62,7 @@ export interface TransactionsTable {
   meta: Record<string, any> | null
 }
 
-export interface BoostersTable {
+interface BoostersTable {
   id: string
   user_id: string
   challenge_id: string | null
@@ -71,7 +71,7 @@ export interface BoostersTable {
   created_at: Date
 }
 
-export interface LevelConfig {
+interface LevelConfig {
   grid: {
     width: number
     height: number
@@ -106,22 +106,22 @@ export interface LevelConfig {
   }
 }
 
-export const LoginSchema = z.object({
+const LoginSchema = z.object({
   email: z.string().email(),
 })
 
-export const JoinChallengeSchema = z.object({
+const JoinChallengeSchema = z.object({
   challengeId: z.string().uuid(),
 })
 
-export const CompleteAttemptSchema = z.object({
+const CompleteAttemptSchema = z.object({
   timeMs: z.number().positive(),
   collected: z.record(z.string(), z.number()),
   moves: z.number().int().positive(),
   attemptToken: z.string(),
 })
 
-export const CreateLevelSchema = z.object({
+const CreateLevelSchema = z.object({
   name: z.string().min(1).max(100),
   config: z.object({
     grid: z.object({
@@ -159,7 +159,7 @@ export const CreateLevelSchema = z.object({
   }),
 })
 
-export const CreateChallengeSchema = z.object({
+const CreateChallengeSchema = z.object({
   name: z.string().min(1).max(100),
   levelId: z.string().uuid(),
   entryFee: z.number().int().positive(),
@@ -168,15 +168,24 @@ export const CreateChallengeSchema = z.object({
   endsAt: z.string().datetime(),
 })
 
-export interface JWTPayload {
+interface JWTPayload {
   userId: string
   email: string
   isAdmin: boolean
 }
 
-export interface AttemptToken {
+interface AttemptToken {
   userId: string
   challengeId: string
   attemptId: string
   startTs: number
 }
+
+module.exports = {
+  LoginSchema,
+  JoinChallengeSchema,
+  CompleteAttemptSchema,
+  CreateLevelSchema,
+  CreateChallengeSchema
+}
+export {}

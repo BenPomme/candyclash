@@ -1,10 +1,9 @@
-import { FastifyPluginAsync } from 'fastify'
-import { collections } from './firebase'
-import { CreateLevelSchema } from './types'
-import { v4 as uuidv4 } from 'uuid'
-import * as admin from 'firebase-admin'
+const { collections } = require('./firebase')
+const { CreateLevelSchema } = require('./types')
+const { v4: uuidv4 } = require('uuid')
+const { firestore } = require('./firebase')
 
-const levelRoutes: FastifyPluginAsync = async (fastify) => {
+const levelRoutes: any = async (fastify: any) => {
   fastify.get('/api/levels', async (_request, reply) => {
     const snapshot = await collections.levels
       .where('is_active', '==', true)
@@ -45,8 +44,8 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
       config: body.config,
       created_by: request.user.userId,
       is_active: true,
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      created_at: new Date(),
+      updated_at: new Date(),
     })
 
     const doc = await collections.levels.doc(levelId).get()
@@ -66,7 +65,7 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
     await collections.levels.doc(id).update({
       name: body.name,
       config: body.config,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: new Date(),
     })
 
     const doc = await collections.levels.doc(id).get()
@@ -98,4 +97,5 @@ const levelRoutes: FastifyPluginAsync = async (fastify) => {
   })
 }
 
-export default levelRoutes
+module.exports = { default: levelRoutes }
+export {}

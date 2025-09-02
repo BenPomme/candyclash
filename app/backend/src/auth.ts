@@ -1,22 +1,14 @@
-import { FastifyPluginAsync } from 'fastify'
-import fp from 'fastify-plugin'
-import * as jwt from 'jsonwebtoken'
-import { LoginSchema, JWTPayload } from './types'
-import { getUserByEmail, collections } from './firebase'
-import { v4 as uuidv4 } from 'uuid'
-import crypto from 'crypto'
-import * as admin from 'firebase-admin'
-
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: JWTPayload
-  }
-}
+const fp = require('fastify-plugin')
+const jwt = require('jsonwebtoken')
+const { LoginSchema } = require('./types')
+const { getUserByEmail, collections } = require('./firebase')
+const { v4: uuidv4 } = require('uuid')
+const crypto = require('crypto')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h'
 
-export function generateToken(payload: JWTPayload): string {
+function generateToken(payload: any): string {
   const tokenPayload = {
     userId: payload.userId,
     email: payload.email,
@@ -25,11 +17,11 @@ export function generateToken(payload: JWTPayload): string {
   return jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
 }
 
-export function verifyToken(token: string): JWTPayload {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload
+function verifyToken(token: string): any {
+  return jwt.verify(token, JWT_SECRET)
 }
 
-export function generateAttemptToken(
+function generateAttemptToken(
   userId: string,
   challengeId: string,
   attemptId: string,
@@ -42,7 +34,7 @@ export function generateAttemptToken(
   return Buffer.from(JSON.stringify({ userId, challengeId, attemptId, startTs, signature })).toString('base64')
 }
 
-export function verifyAttemptToken(token: string): {
+function verifyAttemptToken(token: string): {
   userId: string
   challengeId: string
   attemptId: string
@@ -67,7 +59,7 @@ export function verifyAttemptToken(token: string): {
   }
 }
 
-const authPlugin: FastifyPluginAsync = async (fastify) => {
+const authPlugin: any = async (fastify: any) => {
   fastify.decorateRequest('user', null)
 
   fastify.addHook('onRequest', async (request, reply) => {
@@ -98,28 +90,25 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       const userId = uuidv4()
       const displayName = body.email.split('@')[0]
       
-      const batch = admin.firestore().batch()
-      
+      // Create user and initial transaction
       const userRef = collections.users.doc(userId)
-      batch.set(userRef, {
+      await userRef.set({
         email: body.email,
         display_name: displayName,
         gold_balance: 200,
         is_admin: false,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: new Date(),
       })
       
       const transactionRef = collections.transactions.doc()
-      batch.set(transactionRef, {
+      await transactionRef.set({
         user_id: userId,
         challenge_id: null,
         type: 'seed',
         amount: 200,
         meta: { reason: 'Initial balance' },
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: new Date(),
       })
-      
-      await batch.commit()
       
       user = await getUserByEmail(body.email)
     }
@@ -170,4 +159,12 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   })
 }
 
-export default fp(authPlugin)
+module.exports = {
+  default: fp(authPlugin),
+  generateToken,
+  verifyToken,
+  generateAttemptToken,
+  verifyAttemptToken
+}
+
+export {}

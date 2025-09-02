@@ -1,8 +1,7 @@
-import { FastifyPluginAsync } from 'fastify'
-import { collections, getPot } from './firebase'
-import dayjs from 'dayjs'
+const { collections, getPot } = require('./firebase')
+const dayjs = require('dayjs')
 
-const challengeRoutes: FastifyPluginAsync = async (fastify) => {
+const challengeRoutes: any = async (fastify: any) => {
   fastify.get('/api/challenge/today', async (request, reply) => {
     if (!request.user) {
       return reply.code(401).send({ error: 'Unauthorized' })
@@ -70,4 +69,5 @@ const challengeRoutes: FastifyPluginAsync = async (fastify) => {
   })
 }
 
-export default challengeRoutes
+module.exports = { default: challengeRoutes }
+export {}
