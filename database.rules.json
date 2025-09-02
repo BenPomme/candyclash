@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "leaderboards": {
+      "$challengeId": {
+        "$date": {
+          ".read": true,
+          ".write": "auth != null && auth.token.admin == true",
+          "$attemptId": {
+            ".validate": "newData.hasChildren(['userId', 'timeMs', 'displayName', 'completedAt'])"
+          }
+        }
+      }
+    },
+    "pots": {
+      "$challengeId": {
+        "$date": {
+          ".read": true,
+          ".write": "auth != null && auth.token.admin == true"
+        }
+      }
+    },
+    "attempts": {
+      "$attemptId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.admin == true"
+      }
+    }
+  }
+}

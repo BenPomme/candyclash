@@ -38,9 +38,12 @@ async function buildApp() {
   await fastify.register(levelRoutes)
   await fastify.register(adminRoutes)
 
-  fastify.get('/api/health', async () => {
+  // Health check on both paths
+  const healthHandler = async () => {
     return { status: 'ok', timestamp: new Date().toISOString() }
-  })
+  }
+  const { registerRoute } = require('./route-helper')
+  registerRoute(fastify, 'get', '/health', healthHandler)
 
   return fastify
 }
@@ -54,7 +57,22 @@ exports.api = functions.https.onRequest(async (req, res) => {
     app = fastify
   }
   
-  app.server.emit('request', req, res)
+  // Properly handle the request with Fastify
+  await app.inject({
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    payload: req.body,
+  }).then((response) => {
+    res.status(response.statusCode)
+    Object.keys(response.headers).forEach((key) => {
+      res.setHeader(key, response.headers[key])
+    })
+    res.send(response.payload)
+  }).catch((err) => {
+    console.error('Error handling request:', err)
+    res.status(500).send('Internal Server Error')
+  })
 })
 
 export {}

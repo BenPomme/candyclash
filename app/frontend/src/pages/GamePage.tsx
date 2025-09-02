@@ -28,7 +28,10 @@ export function GamePage() {
         attemptId: gameState.attemptId,
         attemptToken: gameState.attemptToken,
         targetType: gameState.level?.objectives?.primary?.target || 'yellow',
-        targetCount: gameState.level?.objectives?.primary?.count || 100
+        targetCount: gameState.level?.objectives?.primary?.count || 30,
+        onComplete: () => {
+          navigate('/leaderboard')
+        }
       })
     }, 100)
 

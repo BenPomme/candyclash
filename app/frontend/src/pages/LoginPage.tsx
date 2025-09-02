@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 
@@ -7,7 +7,14 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { login } = useAuthStore()
+  const { login, user } = useAuthStore()
+
+  useEffect(() => {
+    // If user is already logged in, redirect to entry page
+    if (user) {
+      navigate('/entry')
+    }
+  }, [user, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

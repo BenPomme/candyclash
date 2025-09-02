@@ -2,9 +2,11 @@ const { collections } = require('./firebase')
 const { CreateLevelSchema } = require('./types')
 const { v4: uuidv4 } = require('uuid')
 const { firestore } = require('./firebase')
+const { registerRoutes } = require('./route-helper')
 
 const levelRoutes: any = async (fastify: any) => {
-  fastify.get('/api/levels', async (_request, reply) => {
+  const routes = registerRoutes(fastify)
+  routes.get('/levels', async (_request, reply) => {
     const snapshot = await collections.levels
       .where('is_active', '==', true)
       .orderBy('created_at', 'desc')
@@ -18,7 +20,7 @@ const levelRoutes: any = async (fastify: any) => {
     return reply.send({ levels })
   })
 
-  fastify.get('/api/levels/:id', async (request, reply) => {
+  routes.get('/levels/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     
     const doc = await collections.levels.doc(id).get()
@@ -31,7 +33,7 @@ const levelRoutes: any = async (fastify: any) => {
     return reply.send({ level })
   })
 
-  fastify.post('/api/levels', async (request, reply) => {
+  routes.post('/levels', async (request, reply) => {
     if (!request.user?.isAdmin) {
       return reply.code(403).send({ error: 'Admin access required' })
     }
@@ -54,7 +56,7 @@ const levelRoutes: any = async (fastify: any) => {
     return reply.code(201).send({ level })
   })
 
-  fastify.put('/api/levels/:id', async (request, reply) => {
+  routes.put('/levels/:id', async (request, reply) => {
     if (!request.user?.isAdmin) {
       return reply.code(403).send({ error: 'Admin access required' })
     }
@@ -78,7 +80,7 @@ const levelRoutes: any = async (fastify: any) => {
     return reply.send({ level })
   })
 
-  fastify.delete('/api/levels/:id', async (request, reply) => {
+  routes.delete('/levels/:id', async (request, reply) => {
     if (!request.user?.isAdmin) {
       return reply.code(403).send({ error: 'Admin access required' })
     }
@@ -92,7 +94,7 @@ const levelRoutes: any = async (fastify: any) => {
     return reply.send({ success: true })
   })
 
-  fastify.post('/api/levels/:id/test', async (_request, reply) => {
+  routes.post('/levels/:id/test', async (_request, reply) => {
     return reply.code(501).send({ error: 'Not implemented yet' })
   })
 }

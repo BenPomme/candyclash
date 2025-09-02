@@ -23,7 +23,7 @@ function initializeDefaultData() {
         primary: {
           type: 'collect',
           target: 'yellow',
-          count: 100,
+          count: 30,
         },
         timeLimit: 180,
       },

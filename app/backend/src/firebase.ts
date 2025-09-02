@@ -2,7 +2,7 @@ const dotenv = require('dotenv')
 dotenv.config()
 
 // Use mock Firebase for local development without credentials
-const USE_MOCK = process.env.USE_FIREBASE_MOCK === 'true' || (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.NODE_ENV === 'development')
+const USE_MOCK = process.env.NODE_ENV === 'development' && process.env.USE_FIREBASE_MOCK === 'true'
 
 let firestore: any
 let realtimeDb: any
@@ -32,24 +32,14 @@ if (USE_MOCK) {
   
   // Initialize Firebase Admin
   if (!admin.apps.length) {
-    const projectId = process.env.FIREBASE_PROJECT_ID || 'candyclash-85fd4'
-    const databaseURL = process.env.FIREBASE_DATABASE_URL || 'https://candyclash-85fd4-default-rtdb.firebaseio.com'
+    const projectId = 'candyclash-85fd4'
+    const databaseURL = 'https://candyclash-85fd4-default-rtdb.europe-west1.firebasedatabase.app'
     
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      // Production: use service account key
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId,
-        databaseURL,
-      })
-    } else {
-      // Default: use application default credentials
-      admin.initializeApp({
-        projectId,
-        databaseURL,
-      })
-    }
+    // In Cloud Functions, use application default credentials
+    admin.initializeApp({
+      projectId,
+      databaseURL,
+    })
   }
   
   firestore = admin.firestore()
@@ -111,12 +101,18 @@ async function addToLeaderboard(
   const date = new Date().toISOString().split('T')[0]
   const leaderboardRef = realtimeDb.ref(`leaderboards/${challengeId}/${date}`)
   
-  await leaderboardRef.child(attemptId).set({
-    userId,
-    timeMs,
-    displayName,
-    completedAt: admin.database.ServerValue.TIMESTAMP,
-  })
+  try {
+    await leaderboardRef.child(attemptId).set({
+      userId,
+      timeMs,
+      displayName,
+      completedAt: USE_MOCK ? Date.now() : admin.database.ServerValue.TIMESTAMP,
+    })
+    console.log('Successfully added to leaderboard:', { challengeId, date, attemptId, userId, displayName, timeMs })
+  } catch (error) {
+    console.error('Failed to add to leaderboard:', error)
+    throw error
+  }
 }
 
 async function getLeaderboard(challengeId: string, limit = 50) {

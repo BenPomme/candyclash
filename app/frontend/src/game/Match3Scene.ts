@@ -17,7 +17,7 @@ export class Match3Scene extends Phaser.Scene {
   private canMove = true
   private score = 0
   private collected: Record<string, number> = {}
-  private targetCount = 100
+  private targetCount = 30
   private targetType = 'yellow'
   private moveCount = 0
   private startTime = 0
@@ -26,28 +26,43 @@ export class Match3Scene extends Phaser.Scene {
   private progressText!: Phaser.GameObjects.Text
   private attemptId: string = ''
   private attemptToken: string = ''
+  private onComplete?: () => void
 
   constructor() {
     super({ key: 'Match3Scene' })
   }
 
-  init(data: { attemptId: string; attemptToken: string; targetType: string; targetCount: number }) {
+  init(data: { attemptId: string; attemptToken: string; targetType: string; targetCount: number; onComplete?: () => void }) {
     this.attemptId = data.attemptId
     this.attemptToken = data.attemptToken
     this.targetType = data.targetType || 'yellow'
-    this.targetCount = data.targetCount || 100
+    this.targetCount = data.targetCount || 30
     this.startTime = Date.now()
     this.collected = { red: 0, blue: 0, green: 0, yellow: 0, purple: 0 }
+    this.onComplete = data.onComplete
   }
 
   preload() {
-    // Create simple colored squares for candies
+    // Load candy images with their actual file extensions
+    const candyFiles: Record<string, string> = {
+      'red': '/candies/red.webp',
+      'blue': '/candies/blue.png', 
+      'green': '/candies/green.jpg',
+      'yellow': '/candies/yellow.png',
+      'purple': '/candies/orange.jpg'  // Map purple to orange
+    }
+    
     this.candyTypes.forEach(color => {
-      this.load.image(color, `data:image/svg+xml;base64,${btoa(`
-        <svg width="60" height="60" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="60" rx="10" fill="${color}" stroke="#333" stroke-width="2"/>
-        </svg>
-      `)}`)
+      this.load.image(color, candyFiles[color])
+    })
+    
+    // Add error handling for image loading
+    this.load.on('loaderror', (file: any) => {
+      console.error('Failed to load:', file.key, file.src)
+    })
+    
+    this.load.on('filecomplete', (key: string) => {
+      console.log('Loaded:', key)
     })
   }
 
@@ -137,7 +152,8 @@ export class Match3Scene extends Phaser.Scene {
     candy.col = col
     candy.candyType = type
     candy.setInteractive()
-    candy.setScale(1)
+    // Scale down the candy images to fit the tile size (64px)
+    candy.setDisplaySize(56, 56)
     
     return candy
   }
@@ -148,7 +164,7 @@ export class Match3Scene extends Phaser.Scene {
       
       if (!this.selectedCandy) {
         this.selectedCandy = gameObject
-        gameObject.setScale(1.2)
+        gameObject.setDisplaySize(64, 64)
       } else {
         // Check if adjacent
         const rowDiff = Math.abs(this.selectedCandy.row - gameObject.row)
@@ -158,7 +174,7 @@ export class Match3Scene extends Phaser.Scene {
           this.swapCandies(this.selectedCandy, gameObject, boardX, boardY)
         }
         
-        this.selectedCandy.setScale(1)
+        this.selectedCandy.setDisplaySize(56, 56)
         this.selectedCandy = null
       }
     })
@@ -366,31 +382,48 @@ export class Match3Scene extends Phaser.Scene {
   private async checkWinCondition() {
     const targetCollected = this.collected[this.targetType] || 0
     
-    if (targetCollected >= this.targetCount) {
+    if (targetCollected >= this.targetCount && this.canMove) {
+      // Disable further moves
+      this.canMove = false
+      
       const timeMs = Date.now() - this.startTime
+      
+      // Show success message immediately
+      this.add.text(
+        this.cameras.main.width / 2,
+        this.cameras.main.height / 2,
+        'LEVEL COMPLETE!',
+        { fontSize: '48px', color: '#00ff00', fontFamily: 'Arial', stroke: '#000000', strokeThickness: 4 }
+      ).setOrigin(0.5).setDepth(1000)
       
       // Complete attempt
       try {
-        await api.attempt.complete(this.attemptId, {
+        const result = await api.attempt.complete(this.attemptId, {
           timeMs,
           collected: this.collected,
           moves: this.moveCount,
           attemptToken: this.attemptToken
         })
         
-        // Show success and return to main menu
-        this.add.text(
-          this.cameras.main.width / 2,
-          this.cameras.main.height / 2,
-          'LEVEL COMPLETE!',
-          { fontSize: '48px', color: '#00ff00', fontFamily: 'Arial' }
-        ).setOrigin(0.5)
+        console.log('Attempt completed successfully:', result)
         
         setTimeout(() => {
-          window.location.href = '/leaderboard'
+          if (this.onComplete) {
+            this.onComplete()
+          } else {
+            window.location.href = '/leaderboard'
+          }
         }, 2000)
       } catch (error) {
         console.error('Failed to complete attempt:', error)
+        // Still navigate to leaderboard even if completion fails
+        setTimeout(() => {
+          if (this.onComplete) {
+            this.onComplete()
+          } else {
+            window.location.href = '/leaderboard'
+          }
+        }, 2000)
       }
     }
   }

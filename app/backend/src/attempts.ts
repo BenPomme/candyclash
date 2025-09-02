@@ -1,9 +1,12 @@
 const { CompleteAttemptSchema } = require('./types')
 const { verifyAttemptToken } = require('./auth')
 const { collections, addToLeaderboard, getLeaderboard, getPot } = require('./firebase')
+const { registerRoutes } = require('./route-helper')
 
 const attemptRoutes: any = async (fastify: any) => {
-  fastify.post('/api/attempt/:id/complete', async (request, reply) => {
+  const routes = registerRoutes(fastify)
+  
+  routes.post('/attempt/:id/complete', async (request, reply) => {
     if (!request.user) {
       return reply.code(401).send({ error: 'Unauthorized' })
     }

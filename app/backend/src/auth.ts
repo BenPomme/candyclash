@@ -63,7 +63,15 @@ const authPlugin: any = async (fastify: any) => {
   fastify.decorateRequest('user', null)
 
   fastify.addHook('onRequest', async (request, reply) => {
-    if (request.url === '/api/auth/dev-login' || request.url === '/api/health') {
+    // Skip auth for public endpoints
+    const publicPaths = ['/api/auth/dev-login', '/api/health', '/auth/dev-login', '/health', '/api/admin/seed', '/admin/seed']
+    const urlPath = request.url.split('?')[0] // Remove query params
+    
+    // Log for debugging in Cloud Functions
+    console.log('Auth check - URL:', urlPath, 'Method:', request.method)
+    
+    if (publicPaths.some(path => urlPath === path || urlPath.endsWith(path))) {
+      console.log('Skipping auth for public path:', urlPath)
       return
     }
 
@@ -81,7 +89,8 @@ const authPlugin: any = async (fastify: any) => {
     }
   })
 
-  fastify.post('/api/auth/dev-login', async (request, reply) => {
+  // Handler for dev login
+  const devLoginHandler = async (request, reply) => {
     const body = LoginSchema.parse(request.body)
     
     let user = await getUserByEmail(body.email)
@@ -134,9 +143,14 @@ const authPlugin: any = async (fastify: any) => {
         isAdmin: userData.is_admin || false,
       },
     })
-  })
+  }
+  
+  // Register on both paths to handle Cloud Functions URL stripping
+  fastify.post('/api/auth/dev-login', devLoginHandler)
+  fastify.post('/auth/dev-login', devLoginHandler)
 
-  fastify.get('/api/me', async (request, reply) => {
+  // Handler for /me endpoint
+  const meHandler = async (request, reply) => {
     if (!request.user) {
       return reply.code(401).send({ error: 'Unauthorized' })
     }
@@ -156,7 +170,11 @@ const authPlugin: any = async (fastify: any) => {
       goldBalance: userData.gold_balance,
       isAdmin: userData.is_admin || false,
     })
-  })
+  }
+  
+  // Register on both paths
+  fastify.get('/api/me', meHandler)
+  fastify.get('/me', meHandler)
 }
 
 module.exports = {
