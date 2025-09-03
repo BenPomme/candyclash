@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { api } from '../api/client'
+import { DistributionConfigurator, type DistributionConfig, validateDistribution } from '../components/DistributionConfigurator'
 
 export function AdminPage() {
   const navigate = useNavigate()
@@ -15,6 +16,19 @@ export function AdminPage() {
   const [levels, setLevels] = useState<any[]>([])
   const [selectedLevelId, setSelectedLevelId] = useState<string>('default-level')
   const [showLevelSelector, setShowLevelSelector] = useState(false)
+  const [showDistributionConfig, setShowDistributionConfig] = useState(false)
+  const [distributionConfig, setDistributionConfig] = useState<DistributionConfig>({
+    type: 'percentage',
+    rules: [
+      { position: 1, amount: 40, type: 'percentage' },
+      { position: 2, amount: 25, type: 'percentage' },
+      { position: 3, amount: 15, type: 'percentage' },
+    ],
+    rake: 5,
+    rake_type: 'percentage',
+    minimum_players: 3,
+    refund_on_insufficient: true,
+  })
 
   useEffect(() => {
     if (!user) {
@@ -119,8 +133,19 @@ export function AdminPage() {
       return
     }
 
-    if (!selectedLevelId) {
-      alert('Please select a level for the challenge')
+    // Show distribution config after level selection
+    if (!showDistributionConfig) {
+      if (!selectedLevelId) {
+        alert('Please select a level for the challenge')
+        return
+      }
+      setShowDistributionConfig(true)
+      return
+    }
+
+    // Validate distribution before creating challenge
+    if (!validateDistribution(distributionConfig)) {
+      setError('Invalid prize distribution: payouts + rake must equal 100%')
       return
     }
 
@@ -150,7 +175,8 @@ export function AdminPage() {
           entryFee,
           attemptsPerDay,
           rakeBps: 0,
-          startsImmediately: true
+          startsImmediately: true,
+          prizeDistribution: distributionConfig
         })
       })
 
@@ -161,6 +187,7 @@ export function AdminPage() {
       const result = await response.json()
       setMessage(result.message || 'Challenge created successfully!')
       setShowLevelSelector(false)
+      setShowDistributionConfig(false)
       
       // Reload leaderboard to see the new state
       setTimeout(() => loadLeaderboard(), 1000)
@@ -274,7 +301,7 @@ export function AdminPage() {
                 </button>
               ) : (
                 <>
-                  {showLevelSelector && (
+                  {showLevelSelector && !showDistributionConfig && (
                     <div className="mt-4 space-y-2">
                       <label className="block text-sm font-medium text-gray-700">
                         Select Level for Challenge:
@@ -294,19 +321,37 @@ export function AdminPage() {
                       </select>
                     </div>
                   )}
+                  {showDistributionConfig && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-medium mb-2">Prize Distribution Configuration</h3>
+                      <DistributionConfigurator
+                        value={distributionConfig}
+                        onChange={setDistributionConfig}
+                      />
+                    </div>
+                  )}
                   <button
                     onClick={handleCreateChallenge}
-                    disabled={isLoading || (showLevelSelector && !selectedLevelId)}
+                    disabled={isLoading || (showLevelSelector && !selectedLevelId) || (showDistributionConfig && !validateDistribution(distributionConfig))}
                     className="mt-6 w-full px-6 py-3 bg-green-500 text-white font-bold rounded-full hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isLoading ? 'Processing...' : showLevelSelector ? 'Confirm & Create Challenge' : 'Create New Challenge'}
+                    {isLoading ? 'Processing...' : 
+                     showDistributionConfig ? (validateDistribution(distributionConfig) ? 'Confirm & Create Challenge' : 'Fix Distribution (Must = 100%)') :
+                     showLevelSelector ? 'Next: Configure Prizes' : 
+                     'Create New Challenge'}
                   </button>
-                  {showLevelSelector && (
+                  {(showLevelSelector || showDistributionConfig) && (
                     <button
-                      onClick={() => setShowLevelSelector(false)}
+                      onClick={() => {
+                        if (showDistributionConfig) {
+                          setShowDistributionConfig(false)
+                        } else {
+                          setShowLevelSelector(false)
+                        }
+                      }}
                       className="mt-2 w-full px-6 py-3 bg-gray-300 text-gray-700 font-bold rounded-full hover:bg-gray-400 transition-colors"
                     >
-                      Cancel
+                      {showDistributionConfig ? 'Back' : 'Cancel'}
                     </button>
                   )}
                 </>

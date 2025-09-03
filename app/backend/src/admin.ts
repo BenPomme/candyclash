@@ -1,5 +1,7 @@
 const { collections } = require('./firebase')
 const { registerRoutes } = require('./route-helper')
+const { PayoutCalculator } = require('./utils/payout-calculator')
+const { DEFAULT_TEMPLATES } = require('./types/distribution')
 
 const adminRoutes: any = async (fastify: any) => {
   const routes = registerRoutes(fastify)
@@ -132,8 +134,35 @@ const adminRoutes: any = async (fastify: any) => {
       return reply.code(400).send({ error: 'Challenge is already closed' })
     }
     
-    const prizeDistribution = challenge.prize_distribution || { '1st': 40, '2nd': 25, '3rd': 15 }
-    console.log('Prize distribution:', prizeDistribution)
+    // Get prize distribution config
+    let distributionConfig = challenge.prize_distribution
+    
+    // If it's the old format, convert it
+    if (!distributionConfig || !distributionConfig.type) {
+      const oldDistribution = challenge.prize_distribution || { '1st': 40, '2nd': 25, '3rd': 15 }
+      const rakeBps = challenge.rake_bps || 0
+      
+      // Convert old format to new format
+      distributionConfig = {
+        type: 'percentage',
+        rules: [],
+        rake: rakeBps / 100, // Convert from basis points to percentage
+        rake_type: 'percentage',
+        minimum_players: 3,
+        refund_on_insufficient: false
+      }
+      
+      // Convert old position-based distribution
+      Object.keys(oldDistribution).sort().forEach((key, index) => {
+        distributionConfig.rules.push({
+          position: index + 1,
+          amount: oldDistribution[key],
+          type: 'percentage'
+        })
+      })
+    }
+    
+    console.log('Distribution config:', distributionConfig)
     
     // Get final leaderboard
     const { getLeaderboard, getPot } = require('./firebase')
@@ -146,85 +175,76 @@ const adminRoutes: any = async (fastify: any) => {
     const pot = await getPot(challengeId)
     console.log('Total pot:', pot)
     
-    // Apply rake if configured
-    const rakeBps = challenge.rake_bps || 0
-    const rake = Math.floor(pot * rakeBps / 10000)
-    const netPot = pot - rake
+    // Use PayoutCalculator to determine payouts
+    const payoutResult = PayoutCalculator.calculatePayouts(
+      leaderboard,
+      distributionConfig,
+      pot,
+      challenge.entry_fee || 20
+    )
     
-    // Calculate prizes based on configured distribution
-    const prizes: Record<number, number> = {}
-    const positions = Object.keys(prizeDistribution).sort()
-    
-    positions.forEach((position, index) => {
-      const place = index + 1
-      const percent = prizeDistribution[position]
-      prizes[place] = Math.floor(netPot * percent / 100)
+    console.log('Payout calculation result:', {
+      payouts: payoutResult.payouts.length,
+      rake: payoutResult.rake,
+      netPot: payoutResult.netPot,
+      refund: payoutResult.refund
     })
     
-    // Award prizes to winners
-    const payouts = []
-    const maxWinners = Math.min(Object.keys(prizes).length, leaderboard.length)
-    console.log('Processing payouts for', maxWinners, 'winners')
+    // Process payouts from PayoutCalculator result
+    const processedPayouts = []
     
-    for (let i = 0; i < maxWinners; i++) {
-      const position = i + 1
-      const winner = leaderboard[i]
-      const prize = prizes[position] || 0
-      
-      console.log(`Processing position ${position}:`, {
-        winner: winner?.displayName,
-        userId: winner?.userId,
-        prize
+    for (const payout of payoutResult.payouts) {
+      console.log(`Processing payout for position ${payout.position}:`, {
+        winner: payout.displayName,
+        userId: payout.userId,
+        amount: payout.amount
       })
       
-      if (prize > 0 && winner) {
-        try {
-          // Update winner's balance
-          console.log(`Fetching user ${winner.userId}...`)
-          const userDoc = await collections.users.doc(winner.userId).get()
-          if (!userDoc.exists) {
-            console.log(`WARNING: User ${winner.userId} not found`)
-            continue
-          }
-          
-          const userData = userDoc.data()
-          const oldBalance = userData?.gold_balance || 0
-          const newBalance = oldBalance + prize
-          
-          console.log(`Updating balance: ${oldBalance} -> ${newBalance}`)
-          await collections.users.doc(winner.userId).update({
-            gold_balance: newBalance
-          })
+      try {
+        // Update winner's balance
+        console.log(`Fetching user ${payout.userId}...`)
+        const userDoc = await collections.users.doc(payout.userId).get()
+        if (!userDoc.exists) {
+          console.log(`WARNING: User ${payout.userId} not found`)
+          continue
+        }
+        
+        const userData = userDoc.data()
+        const oldBalance = userData?.gold_balance || 0
+        const newBalance = oldBalance + payout.amount
+        
+        console.log(`Updating balance: ${oldBalance} -> ${newBalance}`)
+        await collections.users.doc(payout.userId).update({
+          gold_balance: newBalance
+        })
         
         // Record transaction
+        const transactionType = payoutResult.refund ? 'refund' : 'payout'
         await collections.transactions.doc().set({
-          user_id: winner.userId,
+          user_id: payout.userId,
           challenge_id: challengeId,
-          type: 'payout',
-          amount: prize,
+          type: transactionType,
+          amount: payout.amount,
           created_at: new Date(),
           meta: { 
-            position,
-            time_ms: winner.timeMs,
-            attempt_id: winner.attemptId
+            position: payout.position,
+            refund: payoutResult.refund
           }
         })
         
-        payouts.push({
-          position,
-          userId: winner.userId,
-          displayName: winner.displayName,
-          prize,
-          timeMs: winner.timeMs
+        processedPayouts.push({
+          position: payout.position,
+          userId: payout.userId,
+          displayName: payout.displayName,
+          prize: payout.amount
         })
-        console.log(`Successfully processed payout for position ${position}`)
-        } catch (error) {
-          console.error(`ERROR processing payout for position ${position}:`, error)
-        }
+        console.log(`Successfully processed payout for position ${payout.position}`)
+      } catch (error) {
+        console.error(`ERROR processing payout for position ${payout.position}:`, error)
       }
     }
     
-    console.log('All payouts processed:', payouts)
+    console.log('All payouts processed:', processedPayouts)
     
     // Update challenge status to closed
     try {
@@ -233,8 +253,8 @@ const adminRoutes: any = async (fastify: any) => {
         status: 'closed',
         closed_at: new Date(),
         final_pot: pot,
-        rake_collected: rake,
-        winners: payouts,
+        rake_collected: payoutResult.rake,
+        winners: processedPayouts,
         updated_at: new Date()
       })
       console.log('Challenge status updated successfully')
@@ -246,17 +266,23 @@ const adminRoutes: any = async (fastify: any) => {
     // Don't automatically create a new challenge - let admin do it manually
     console.log('=== CLOSE CHALLENGE SUCCESS ===')
     console.log(`Challenge ${challengeId} closed successfully`)
-    console.log(`Prizes awarded: ${payouts.length}`)
+    console.log(`Prizes awarded: ${processedPayouts.length}`)
     console.log(`Total pot: ${pot} Gold Bars`)
+    console.log(`Rake collected: ${payoutResult.rake} Gold Bars`)
     console.log('=== CLOSE CHALLENGE DEBUG END ===')
+    
+    const message = payoutResult.refund 
+      ? `Challenge closed. All players refunded (minimum requirements not met).`
+      : `Challenge closed successfully. ${processedPayouts.length} prizes awarded. Total pot: ${pot} Gold Bars.`
     
     return reply.send({
       success: true,
       pot,
-      netPot,
-      rake,
-      payouts,
-      message: `Challenge closed successfully. ${payouts.length} prizes awarded. Total pot: ${pot} Gold Bars.`
+      netPot: payoutResult.netPot,
+      rake: payoutResult.rake,
+      payouts: processedPayouts,
+      refund: payoutResult.refund,
+      message
     })
   })
 
@@ -271,7 +297,8 @@ const adminRoutes: any = async (fastify: any) => {
       entryFee = 20,
       attemptsPerDay = 2,
       rakeBps = 0,
-      startsImmediately = true
+      startsImmediately = true,
+      prizeDistribution
     } = request.body as any
     
     const now = new Date()
@@ -301,7 +328,8 @@ const adminRoutes: any = async (fastify: any) => {
         starts_at: startTime,
         ends_at: endTime,
         status: 'active',
-        created_at: new Date()
+        created_at: new Date(),
+        prize_distribution: prizeDistribution || DEFAULT_TEMPLATES[0].config // Use default if not provided
       }
       
       console.log('Creating challenge with data:', {

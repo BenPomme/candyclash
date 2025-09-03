@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { DistributionConfigSchema } from './distribution'
 
-// Challenge configuration schemas
-export const PrizeDistributionSchema = z.record(z.string(), z.number().min(0).max(100))
+// Legacy prize distribution schema (for backward compatibility)
+export const LegacyPrizeDistributionSchema = z.record(z.string(), z.number().min(0).max(100))
   .refine(data => {
     const total = Object.values(data).reduce((sum, val) => sum + val, 0)
     return total <= 100
@@ -20,9 +21,17 @@ const BaseChallengeSchema = z.object({
   starts_at: z.string().datetime().optional(),
   duration_hours: z.number().min(1).max(168).optional(), // Max 1 week
   ends_at: z.string().datetime().optional(),
-  attempts_config: AttemptsConfigSchema,
-  prize_distribution: PrizeDistributionSchema,
-  rake_bps: z.number().min(0).max(5000), // Max 50% rake
+  attempts_config: AttemptsConfigSchema.optional(), // Made optional for backward compatibility
+  
+  // Prize distribution - support both legacy and new format
+  prize_distribution: z.union([
+    LegacyPrizeDistributionSchema,
+    DistributionConfigSchema
+  ]).optional(),
+  
+  // Legacy rake field (basis points)
+  rake_bps: z.number().min(0).max(5000).optional(), // Max 50% rake
+  
   min_players: z.number().min(2).optional(),
   max_players: z.number().min(2).max(10000).optional(),
   featured: z.boolean().default(false),
