@@ -11,6 +11,7 @@ export function LeaderboardPage() {
   const [timeLeft, setTimeLeft] = useState('')
   const [pot, setPot] = useState(0)
   const [_userRank, setUserRank] = useState<number | null>(null)
+  const [closesAt, setClosesAt] = useState<any>(null)
 
   useEffect(() => {
     if (!user) {
@@ -24,24 +25,53 @@ export function LeaderboardPage() {
     // Refresh every 5 seconds
     const refreshInterval = setInterval(loadLeaderboard, 5000)
 
-    // Update countdown timer
-    const interval = setInterval(() => {
-      const now = new Date()
-      const endOfDay = new Date()
-      endOfDay.setHours(23, 59, 59, 999)
-      const diff = endOfDay.getTime() - now.getTime()
-      
-      const hours = Math.floor(diff / (1000 * 60 * 60))
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-      
-      setTimeLeft(`${hours}h ${minutes}m`)
-    }, 1000)
-
     return () => {
-      clearInterval(interval)
       clearInterval(refreshInterval)
     }
   }, [user, navigate])
+
+  useEffect(() => {
+    if (!closesAt) return
+
+    const updateCountdown = () => {
+      const now = new Date()
+      let endTime: Date
+      
+      // Handle different date formats from Firebase
+      if (typeof closesAt === 'number') {
+        endTime = new Date(closesAt)
+      } else if (closesAt._seconds) {
+        endTime = new Date(closesAt._seconds * 1000)
+      } else if (closesAt.seconds) {
+        endTime = new Date(closesAt.seconds * 1000)
+      } else {
+        endTime = new Date(closesAt)
+      }
+      
+      // Check if date is valid
+      if (isNaN(endTime.getTime())) {
+        // If invalid, use end of today
+        endTime = new Date()
+        endTime.setHours(23, 59, 59, 999)
+      }
+      
+      const diff = endTime.getTime() - now.getTime()
+      
+      if (diff <= 0) {
+        setTimeLeft('Challenge ended')
+        return
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      setTimeLeft(`${hours}h ${minutes}m`)
+    }
+
+    updateCountdown()
+    const interval = setInterval(updateCountdown, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [closesAt])
   
   const loadLeaderboard = async () => {
     try {
@@ -50,6 +80,7 @@ export function LeaderboardPage() {
       setLeaderboard(data.entries || [])
       setPot(data.pot || 0)
       setUserRank(data.userRank)
+      setClosesAt(data.closesAt)
       setIsLoading(false)
     } catch (error: any) {
       console.error('Failed to load leaderboard:', error)
@@ -77,12 +108,18 @@ export function LeaderboardPage() {
 
   return (
     <div className="min-h-screen relative py-8 px-4">
-      <button
-        onClick={logout}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-      >
-        Logout
-      </button>
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <div className="text-sm text-gray-600">
+          {user?.displayName || user?.email}
+          {user?.isAdmin && <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">ADMIN</span>}
+        </div>
+        <button
+          onClick={logout}
+          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+        >
+          Logout
+        </button>
+      </div>
       
       <div className="max-w-4xl mx-auto">
         <div className="candy-card mb-6">

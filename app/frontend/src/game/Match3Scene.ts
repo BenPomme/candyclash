@@ -14,13 +14,14 @@ export class Match3Scene extends Phaser.Scene {
   private tileSize = 64
   private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple']
   private selectedCandy: Candy | null = null
-  private canMove = true
+  private canMove = false  // Start with moves disabled until data loads
   private score = 0
   private collected: Record<string, number> = {}
-  private targetCount = 30
-  private targetType = 'yellow'
+  private targetCount: number | null = null  // No default - must be set from data
+  private targetType: string | null = null   // No default - must be set from data
   private moveCount = 0
   private startTime = 0
+  private dataLoaded = false  // Track if challenge data has been loaded
   private timerText!: Phaser.GameObjects.Text
   private scoreText!: Phaser.GameObjects.Text
   private progressText!: Phaser.GameObjects.Text
@@ -35,8 +36,18 @@ export class Match3Scene extends Phaser.Scene {
   init(data: { attemptId: string; attemptToken: string; targetType: string; targetCount: number; onComplete?: () => void }) {
     this.attemptId = data.attemptId
     this.attemptToken = data.attemptToken
-    this.targetType = data.targetType || 'yellow'
-    this.targetCount = data.targetCount || 30
+    // No defaults - if data is missing, the game should not start
+    this.targetType = data.targetType
+    this.targetCount = data.targetCount
+    
+    if (!this.targetType || !this.targetCount) {
+      console.error('ERROR: Challenge data missing!', { targetType: this.targetType, targetCount: this.targetCount })
+      this.dataLoaded = false
+    } else {
+      this.dataLoaded = true
+      console.log('Challenge data loaded:', { targetType: this.targetType, targetCount: this.targetCount })
+    }
+    
     this.startTime = Date.now()
     this.collected = { red: 0, blue: 0, green: 0, yellow: 0, purple: 0 }
     this.onComplete = data.onComplete
@@ -67,6 +78,35 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   create() {
+    // Check if data was loaded properly
+    if (!this.dataLoaded || !this.targetType || !this.targetCount) {
+      // Show error state
+      this.add.rectangle(
+        this.cameras.main.width / 2,
+        this.cameras.main.height / 2,
+        this.cameras.main.width,
+        this.cameras.main.height,
+        0x1a1a2e
+      )
+      
+      this.add.text(
+        this.cameras.main.width / 2,
+        this.cameras.main.height / 2,
+        'ERROR: Challenge data not loaded!\nPlease refresh the page.',
+        { 
+          fontSize: '24px', 
+          color: '#ff0000', 
+          fontFamily: 'Arial',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 2
+        }
+      ).setOrigin(0.5)
+      
+      console.error('Cannot start game - missing challenge data')
+      return // Stop initialization here
+    }
+
     // Center the game board
     const boardX = (this.cameras.main.width - this.gridWidth * this.tileSize) / 2
     const boardY = 100
@@ -122,13 +162,35 @@ export class Match3Scene extends Phaser.Scene {
     // Score
     this.scoreText = this.add.text(20, 50, 'Moves: 0', style)
     
-    // Progress
-    this.progressText = this.add.text(
-      20,
-      80,
-      `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: 0/${this.targetCount}`,
-      { ...style, color: this.targetType }
-    )
+    // Progress - only show if we have valid data
+    if (this.targetType && this.targetCount) {
+      const targetColor = this.targetType === 'yellow' ? '#ffff00' : 
+                         this.targetType === 'blue' ? '#0099ff' :
+                         this.targetType === 'red' ? '#ff3333' :
+                         this.targetType === 'green' ? '#00ff00' :
+                         this.targetType === 'purple' ? '#cc00ff' : '#ffffff'
+      
+      this.progressText = this.add.text(
+        20,
+        80,
+        `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: 0/${this.targetCount}`,
+        { ...style, color: targetColor }
+      )
+      
+      // Only enable moves if we have valid data
+      this.canMove = true
+      console.log('Game ready - moves enabled for:', this.targetType, this.targetCount)
+    } else {
+      // Show loading or error state
+      this.progressText = this.add.text(
+        20,
+        80,
+        'ERROR: Challenge data missing!',
+        { ...style, color: '#ff0000' }
+      )
+      this.canMove = false
+      console.error('Cannot enable moves - missing challenge data')
+    }
   }
 
   private fillGrid(boardX: number, boardY: number) {
@@ -380,6 +442,12 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   private async checkWinCondition() {
+    // Safety check - don't check win condition without valid data
+    if (!this.targetType || !this.targetCount) {
+      console.error('Cannot check win condition - missing challenge data')
+      return
+    }
+    
     const targetCollected = this.collected[this.targetType] || 0
     
     if (targetCollected >= this.targetCount && this.canMove) {
@@ -429,6 +497,11 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   update() {
+    // Don't update if data isn't loaded
+    if (!this.dataLoaded || !this.targetType || !this.targetCount) {
+      return
+    }
+    
     // Update timer
     const elapsed = Date.now() - this.startTime
     const minutes = Math.floor(elapsed / 60000)
@@ -438,10 +511,12 @@ export class Match3Scene extends Phaser.Scene {
     // Update score
     this.scoreText.setText(`Moves: ${this.moveCount}`)
     
-    // Update progress
-    const targetCollected = this.collected[this.targetType] || 0
-    this.progressText.setText(
-      `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: ${targetCollected}/${this.targetCount}`
-    )
+    // Update progress - safe with null check
+    if (this.targetType && this.targetCount) {
+      const targetCollected = this.collected[this.targetType] || 0
+      this.progressText.setText(
+        `${this.targetType.charAt(0).toUpperCase() + this.targetType.slice(1)}: ${targetCollected}/${this.targetCount}`
+      )
+    }
   }
 }

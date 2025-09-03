@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import { api } from '../api/client'
 
 export function LevelEditorPage() {
   const navigate = useNavigate()
@@ -21,7 +22,7 @@ export function LevelEditorPage() {
     return null
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const levelConfig = {
       name: levelName,
       config: {
@@ -31,6 +32,7 @@ export function LevelEditorPage() {
         },
         objectives: {
           primary: objective,
+          timeLimit: 180, // 3 minutes default
         },
         candies: {
           colors: candyColors,
@@ -47,8 +49,40 @@ export function LevelEditorPage() {
       },
     }
     
-    console.log('Saving level:', levelConfig)
-    // TODO: Implement save to backend
+    try {
+      console.log('Saving level:', levelConfig)
+      const response = await api.levels.create(levelConfig)
+      console.log('Level saved:', response)
+      alert(`Level "${levelName}" saved successfully!`)
+      navigate('/admin')
+    } catch (error: any) {
+      console.error('Failed to save level:', error)
+      alert('Failed to save level: ' + (error.response?.data?.error || error.message))
+    }
+  }
+
+  const handleTestPlay = () => {
+    // Store the level config in sessionStorage for test play
+    const testLevel = {
+      grid: {
+        width: gridSize.width,
+        height: gridSize.height,
+      },
+      objectives: {
+        primary: objective,
+        timeLimit: 180, // 3 minutes for testing
+      },
+      candies: {
+        colors: candyColors,
+      },
+    }
+    
+    // Store as test level
+    sessionStorage.setItem('testLevel', JSON.stringify(testLevel))
+    sessionStorage.setItem('isTestPlay', 'true')
+    
+    // Navigate to game page
+    navigate('/game')
   }
 
   return (
@@ -209,14 +243,14 @@ export function LevelEditorPage() {
               <button onClick={handleSave} className="flex-1 gold-button">
                 Save Level
               </button>
-              <button className="flex-1 candy-button">
+              <button onClick={handleTestPlay} className="flex-1 candy-button">
                 Test Play
               </button>
               <button
                 onClick={() => navigate('/admin')}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-bold rounded-full hover:bg-gray-300"
               >
-                Cancel
+                Back to Admin
               </button>
             </div>
           </div>

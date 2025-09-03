@@ -1,23 +1,47 @@
-const { collections } = require('./firebase')
+const { collections, firestore } = require('./firebase')
 const { CreateLevelSchema } = require('./types')
 const { v4: uuidv4 } = require('uuid')
-const { firestore } = require('./firebase')
 const { registerRoutes } = require('./route-helper')
 
 const levelRoutes: any = async (fastify: any) => {
   const routes = registerRoutes(fastify)
   routes.get('/levels', async (_request, reply) => {
-    const snapshot = await collections.levels
-      .where('is_active', '==', true)
-      .orderBy('created_at', 'desc')
-      .get()
+    try {
+      console.log('Fetching all levels using direct Firestore reference...')
+      // Use direct firestore reference to bypass any collection wrapper
+      const levelsRef = firestore.collection('levels')
+      const snapshot = await levelsRef.get()
+      
+      console.log(`Found ${snapshot.docs.length} total levels in Firestore`)
+      
+      // Map and filter documents
+      const levels = []
+      snapshot.forEach(doc => {
+        const data = doc.data()
+        // Include levels where is_active is not explicitly false
+        if (data.is_active !== false) {
+          levels.push({
+            id: doc.id,
+            ...data
+          })
+          console.log(`Including level: ${data.name || doc.id}`)
+        }
+      })
+      
+      // Sort by created_at in memory
+      levels.sort((a, b) => {
+        const aTime = a.created_at?.toDate?.() || a.created_at || new Date(0)
+        const bTime = b.created_at?.toDate?.() || b.created_at || new Date(0)
+        return new Date(bTime).getTime() - new Date(aTime).getTime()
+      })
 
-    const levels = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
-
-    return reply.send({ levels })
+      console.log(`Returning ${levels.length} active levels`)
+      return reply.send({ levels })
+    } catch (error) {
+      console.error('Error fetching levels:', error)
+      console.error('Error stack:', error.stack)
+      return reply.code(500).send({ error: 'Failed to fetch levels', message: error.message })
+    }
   })
 
   routes.get('/levels/:id', async (request, reply) => {
@@ -34,11 +58,22 @@ const levelRoutes: any = async (fastify: any) => {
   })
 
   routes.post('/levels', async (request, reply) => {
+    console.log('POST /levels - User:', request.user)
+    console.log('Request body:', JSON.stringify(request.body, null, 2))
+    
     if (!request.user?.isAdmin) {
+      console.log('User is not admin')
       return reply.code(403).send({ error: 'Admin access required' })
     }
 
-    const body = CreateLevelSchema.parse(request.body)
+    let body
+    try {
+      body = CreateLevelSchema.parse(request.body)
+      console.log('Level schema validated successfully')
+    } catch (error) {
+      console.error('Level schema validation failed:', error)
+      return reply.code(400).send({ error: 'Invalid level data', details: error.errors })
+    }
     const levelId = uuidv4()
 
     await collections.levels.doc(levelId).set({

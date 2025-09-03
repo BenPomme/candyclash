@@ -1,5 +1,4 @@
 import Phaser from 'phaser'
-import { Match3Scene } from './Match3Scene'
 
 export const createGameConfig = (parent: string): Phaser.Types.Core.GameConfig => ({
   type: Phaser.AUTO,
@@ -7,7 +6,7 @@ export const createGameConfig = (parent: string): Phaser.Types.Core.GameConfig =
   width: 600,
   height: 700,
   backgroundColor: '#1a1a2e',
-  scene: [Match3Scene],
+  scene: [], // Don't auto-start any scenes - we'll add and start them manually
   physics: {
     default: 'arcade',
     arcade: {

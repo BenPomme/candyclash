@@ -12,6 +12,36 @@ export function EntryPage() {
   const [timeRemaining, setTimeRemaining] = useState('')
   const [userRank, setUserRank] = useState<number | null>(null)
 
+  const getObjectiveText = (challenge: any) => {
+    if (!challenge?.level?.objectives?.primary) {
+      return 'Complete the challenge as fast as you can!'
+    }
+    
+    const objectives = challenge.level?.objectives
+    const primary = objectives?.primary
+    
+    if (!primary) {
+      return 'Complete the challenge as fast as you can!'
+    }
+    
+    switch (primary.type) {
+      case 'collect':
+        const target = primary.target || 'yellow'
+        const count = primary.count || 100
+        return `Collect ${count} ${target} candies as fast as you can!`
+      
+      case 'score':
+        const score = primary.score || 10000
+        return `Reach a score of ${score.toLocaleString()} points as fast as you can!`
+      
+      case 'clear':
+        return 'Clear all special tiles from the board as fast as you can!'
+      
+      default:
+        return 'Complete the challenge as fast as you can!'
+    }
+  }
+
   useEffect(() => {
     if (!user) {
       navigate('/')
@@ -105,7 +135,7 @@ export function EntryPage() {
           attemptId: joinResponse.attemptId,
           attemptToken: joinResponse.attemptToken,
           challengeId: challenge.challenge.id,
-          level: challenge.config || challenge.level
+          level: challenge.level
         }
       })
     } catch (err: any) {
@@ -125,8 +155,34 @@ export function EntryPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+          <div className="text-sm text-gray-600">
+            {user?.displayName || user?.email}
+            {user?.isAdmin && <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">ADMIN</span>}
+          </div>
+          <button
+            onClick={logout}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
+        
         <div className="candy-card max-w-md w-full text-center">
           <h2 className="text-2xl font-candy text-candy-red mb-4">{error}</h2>
+          
+          {user?.isAdmin && (
+            <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
+              <p className="text-sm text-gray-700 mb-2">As an admin, you can create a new challenge</p>
+              <button 
+                onClick={() => navigate('/admin')} 
+                className="px-6 py-2 bg-purple-500 text-white rounded-full hover:bg-purple-600 font-bold"
+              >
+                Go to Admin Panel
+              </button>
+            </div>
+          )}
+          
           <button onClick={() => window.location.reload()} className="candy-button">
             Retry
           </button>
@@ -136,16 +192,29 @@ export function EntryPage() {
   }
 
   return (
-    <div className="min-h-screen relative">
-      <button
-        onClick={logout}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-      >
-        Logout
-      </button>
+    <div className="min-h-screen relative flex items-center justify-center px-4">
+      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+        <div className="text-sm text-gray-600">
+          {user?.displayName || user?.email}
+          {user?.isAdmin && <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">ADMIN</span>}
+        </div>
+        {user?.isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          >
+            Admin Panel
+          </button>
+        )}
+        <button
+          onClick={logout}
+          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+        >
+          Logout
+        </button>
+      </div>
       
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="candy-card max-w-lg w-full">
+      <div className="candy-card max-w-lg w-full">
           <div className="text-center mb-6">
           <div className="mb-3">
             <div className="text-sm text-gray-600">Welcome back,</div>
@@ -190,7 +259,7 @@ export function EntryPage() {
         <div className="space-y-4 mb-6">
           <div className="bg-candy-yellow/20 rounded-lg p-4">
             <h3 className="font-bold text-candy-orange mb-2">Challenge Objective</h3>
-            <p>Collect {challenge?.config?.objectives?.primary?.count || 30} yellow candies as fast as you can!</p>
+            <p>{getObjectiveText(challenge)}</p>
           </div>
 
           <div className="bg-candy-blue/20 rounded-lg p-4">
@@ -236,6 +305,15 @@ export function EntryPage() {
           </button>
         </div>
 
+        {user?.isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="w-full mt-4 px-6 py-3 bg-purple-500 text-white font-bold rounded-full hover:bg-purple-600 transition-colors"
+          >
+            Admin Dashboard
+          </button>
+        )}
+
         {challenge?.attemptsLeft <= 0 && (
           <p className="text-center text-red-500 mt-4">
             You've used all your attempts for today!
@@ -247,7 +325,6 @@ export function EntryPage() {
             Not enough Gold Bars to enter!
           </p>
         )}
-        </div>
       </div>
     </div>
   )

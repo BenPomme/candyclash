@@ -60,6 +60,7 @@ class ApiClient {
     },
   }
 
+
   attempt = {
     complete: async (
       attemptId: string,
@@ -111,7 +112,7 @@ class ApiClient {
 
   admin = {
     closeChallenge: async (challengeId: string) => {
-      const response = await this.client.post(`/admin/challenge/close`, { id: challengeId })
+      const response = await this.client.post(`/admin/challenge/close`, { challengeId })
       return response.data
     },
     createChallenge: async (data: any) => {

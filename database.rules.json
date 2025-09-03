@@ -4,7 +4,7 @@
       "$challengeId": {
         "$date": {
           ".read": true,
-          ".write": "auth != null && auth.token.admin == true",
+          ".write": true,
           "$attemptId": {
             ".validate": "newData.hasChildren(['userId', 'timeMs', 'displayName', 'completedAt'])"
           }
@@ -15,14 +15,8 @@
       "$challengeId": {
         "$date": {
           ".read": true,
-          ".write": "auth != null && auth.token.admin == true"
+          ".write": true
         }
-      }
-    },
-    "attempts": {
-      "$attemptId": {
-        ".read": "auth != null",
-        ".write": "auth != null && auth.token.admin == true"
       }
     }
   }

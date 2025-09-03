@@ -98,17 +98,38 @@ async function addToLeaderboard(
   timeMs: number,
   displayName: string,
 ) {
+  // Use UTC date to ensure consistency across timezones
   const date = new Date().toISOString().split('T')[0]
   const leaderboardRef = realtimeDb.ref(`leaderboards/${challengeId}/${date}`)
+  
+  // Ensure displayName is never empty
+  const finalDisplayName = displayName && displayName.trim() ? displayName : 'Anonymous'
+  
+  console.log('Adding to leaderboard:', { 
+    challengeId, 
+    date, 
+    attemptId, 
+    userId, 
+    displayName: finalDisplayName, 
+    timeMs 
+  })
   
   try {
     await leaderboardRef.child(attemptId).set({
       userId,
       timeMs,
-      displayName,
+      displayName: finalDisplayName,
       completedAt: USE_MOCK ? Date.now() : admin.database.ServerValue.TIMESTAMP,
     })
-    console.log('Successfully added to leaderboard:', { challengeId, date, attemptId, userId, displayName, timeMs })
+    console.log('Successfully added to leaderboard')
+    
+    // Verify the entry was added
+    const verification = await leaderboardRef.child(attemptId).once('value')
+    if (verification.exists()) {
+      console.log('Verified entry exists in leaderboard:', verification.val())
+    } else {
+      console.error('ERROR: Entry not found after adding to leaderboard')
+    }
   } catch (error) {
     console.error('Failed to add to leaderboard:', error)
     throw error
@@ -116,8 +137,11 @@ async function addToLeaderboard(
 }
 
 async function getLeaderboard(challengeId: string, limit = 50) {
+  // Use UTC date to ensure consistency across timezones
   const date = new Date().toISOString().split('T')[0]
   const leaderboardRef = realtimeDb.ref(`leaderboards/${challengeId}/${date}`)
+  
+  console.log('Fetching leaderboard for:', { challengeId, date, limit })
   
   const snapshot = await leaderboardRef
     .orderByChild('timeMs')
@@ -126,11 +150,18 @@ async function getLeaderboard(challengeId: string, limit = 50) {
   
   const entries: any[] = []
   snapshot.forEach((child) => {
-    entries.push({
+    const entry = {
       attemptId: child.key,
       ...child.val(),
-    })
+    }
+    // Ensure displayName is always present
+    if (!entry.displayName) {
+      entry.displayName = 'Anonymous'
+    }
+    entries.push(entry)
   })
+  
+  console.log(`Found ${entries.length} leaderboard entries`)
   
   return entries
 }
@@ -145,11 +176,17 @@ async function updatePot(challengeId: string, amount: number) {
 }
 
 async function getPot(challengeId: string) {
+  // Use UTC date to ensure consistency across timezones
   const date = new Date().toISOString().split('T')[0]
   const potRef = realtimeDb.ref(`pots/${challengeId}/${date}`)
   
+  console.log('Fetching pot for:', { challengeId, date })
+  
   const snapshot = await potRef.once('value')
-  return snapshot.val() || 0
+  const potValue = snapshot.val() || 0
+  console.log('Pot value:', potValue)
+  
+  return potValue
 }
 
 module.exports = {

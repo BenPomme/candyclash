@@ -7,21 +7,44 @@ const attemptRoutes: any = async (fastify: any) => {
   const routes = registerRoutes(fastify)
   
   routes.post('/attempt/:id/complete', async (request, reply) => {
+    console.log('=== ATTEMPT COMPLETE START ===')
+    console.log('User:', request.user)
+    
     if (!request.user) {
+      console.log('No user - returning 401')
       return reply.code(401).send({ error: 'Unauthorized' })
     }
 
     const { id: attemptId } = request.params as { id: string }
-    const body = CompleteAttemptSchema.parse(request.body)
+    console.log('Attempt ID:', attemptId)
+    
+    let body
+    try {
+      body = CompleteAttemptSchema.parse(request.body)
+      console.log('Request body parsed:', { timeMs: body.timeMs, moves: body.moves, hasToken: !!body.attemptToken })
+    } catch (error) {
+      console.error('Failed to parse request body:', error)
+      return reply.code(400).send({ error: 'Invalid request body' })
+    }
     
     // Verify attempt token
     try {
+      console.log('Verifying attempt token...')
       const tokenData = verifyAttemptToken(body.attemptToken)
+      console.log('Token data:', tokenData)
       
       if (tokenData.attemptId !== attemptId || tokenData.userId !== request.user.userId) {
+        console.log('Token validation failed:', {
+          tokenAttemptId: tokenData.attemptId,
+          expectedAttemptId: attemptId,
+          tokenUserId: tokenData.userId,
+          expectedUserId: request.user.userId
+        })
         return reply.code(403).send({ error: 'Invalid attempt token' })
       }
+      console.log('Token verified successfully')
     } catch (error) {
+      console.error('Token verification error:', error)
       return reply.code(403).send({ error: 'Invalid attempt token' })
     }
     
@@ -51,19 +74,47 @@ const attemptRoutes: any = async (fastify: any) => {
     const userDoc = await collections.users.doc(request.user.userId).get()
     const user = userDoc.data() as any
     
+    // For users created before display_name was added, use email prefix
+    let displayNameToUse = 'Anonymous'
+    if (user) {
+      if (user.display_name) {
+        displayNameToUse = user.display_name
+      } else if (user.email) {
+        // Use email prefix for users without display name
+        displayNameToUse = user.email.split('@')[0]
+        // Update the user document with this display name for future use
+        await collections.users.doc(request.user.userId).update({
+          display_name: displayNameToUse
+        })
+      }
+    }
+    
+    console.log('Completing attempt for user:', {
+      userId: request.user.userId,
+      displayName: displayNameToUse,
+      email: user?.email,
+      attemptId,
+      timeMs: body.timeMs
+    })
+    
     // Add to leaderboard
     await addToLeaderboard(
       attempt.challenge_id,
       attemptId,
       request.user.userId,
       body.timeMs,
-      user?.display_name || user?.email || 'Anonymous'
+      displayNameToUse
     )
     
     // Get current rank and pot
+    console.log('Getting leaderboard and rank...')
     const leaderboard = await getLeaderboard(attempt.challenge_id)
     const rank = leaderboard.findIndex(entry => entry.attemptId === attemptId) + 1
     const pot = await getPot(attempt.challenge_id)
+    
+    console.log('=== ATTEMPT COMPLETE SUCCESS ===')
+    console.log(`Attempt ${attemptId} completed successfully`)
+    console.log(`Rank: ${rank}, Pot: ${pot}`)
     
     return reply.send({
       rank,

@@ -19,14 +19,41 @@ const challengeRoutes: any = async (fastify: any) => {
     }
 
     const challenge = { id: challengeDoc.id, ...challengeDoc.data() } as any
+    
+    // Check if challenge is closed
+    if (challenge.status === 'closed') {
+      return reply.code(404).send({ error: 'Challenge has ended. Please wait for the next challenge.' })
+    }
 
     // Get level config
-    const levelDoc = await collections.levels.doc(challenge.level_id).get()
-    const level = levelDoc.exists ? levelDoc.data() : null
-
-    if (!level) {
-      return reply.code(404).send({ error: 'Level not found' })
+    let level = null
+    const levelId = challenge.level_id
+    
+    if (!levelId) {
+      console.error('Challenge has no level_id:', challenge.id)
+      return reply.code(500).send({ error: 'Challenge configuration error: no level specified' })
     }
+    
+    const levelDoc = await collections.levels.doc(levelId).get()
+    
+    if (!levelDoc.exists) {
+      console.error('Level not found for challenge:', { challengeId: challenge.id, levelId })
+      return reply.code(500).send({ error: 'Challenge configuration error: level not found' })
+    }
+    
+    level = levelDoc.data()
+    
+    if (!level.config) {
+      console.error('Level has no config:', { levelId, level })
+      return reply.code(500).send({ error: 'Challenge configuration error: level has no configuration' })
+    }
+    
+    console.log('Loaded level config:', { 
+      levelId, 
+      objectives: level.config.objectives,
+      grid: level.config.grid,
+      candies: level.config.candies 
+    })
 
     // Count user's attempts today (simplified for now)
     // In production, you'd create proper indexes
@@ -76,8 +103,13 @@ const challengeRoutes: any = async (fastify: any) => {
 
   // Join challenge handler
   const joinHandler = async (request, reply) => {
+    console.log('=== JOIN HANDLER START ===')
     console.log('Join handler called with params:', request.params)
+    console.log('Request URL:', request.url)
+    console.log('User:', request.user)
+    
     if (!request.user) {
+      console.log('No user - returning 401')
       return reply.code(401).send({ error: 'Unauthorized' })
     }
 
@@ -87,20 +119,51 @@ const challengeRoutes: any = async (fastify: any) => {
 
     // Get challenge
     const challengeDoc = await collections.challenges.doc(challengeId).get()
+    console.log('Challenge doc exists:', challengeDoc.exists)
+    
     if (!challengeDoc.exists) {
+      console.log('Challenge not found - returning 404')
       return reply.code(404).send({ error: 'Challenge not found' })
     }
-    const challenge = challengeDoc.data() as any
-
-    // Check if challenge is active (handle Firestore Timestamp)
-    const now = new Date()
-    const startsAt = challenge.starts_at?.toDate ? challenge.starts_at.toDate() : new Date(challenge.starts_at)
-    const endsAt = challenge.ends_at?.toDate ? challenge.ends_at.toDate() : new Date(challenge.ends_at)
     
-    console.log('Date check - now:', now, 'startsAt:', startsAt, 'endsAt:', endsAt)
-    if (now < startsAt || now > endsAt) {
-      console.log('Challenge not active - returning 400')
-      return reply.code(400).send({ error: 'Challenge is not active' })
+    const challenge = challengeDoc.data() as any
+    console.log('Challenge data:', JSON.stringify({
+      status: challenge.status,
+      starts_at: challenge.starts_at,
+      ends_at: challenge.ends_at,
+      level_id: challenge.level_id,
+      entry_fee: challenge.entry_fee
+    }))
+
+    // Check if challenge is closed
+    if (challenge.status === 'closed') {
+      console.log('Challenge is closed - returning 400')
+      return reply.code(400).send({ error: 'Challenge has ended' })
+    }
+    
+    // Check if challenge is active (handle Firestore Timestamp and missing dates)
+    const now = new Date()
+    console.log('Current time:', now.toISOString())
+    
+    // If dates are present, check them
+    if (challenge.starts_at && challenge.ends_at) {
+      const startsAt = challenge.starts_at?.toDate ? challenge.starts_at.toDate() : new Date(challenge.starts_at)
+      const endsAt = challenge.ends_at?.toDate ? challenge.ends_at.toDate() : new Date(challenge.ends_at)
+      
+      console.log('Date check - now:', now.toISOString(), 'startsAt:', startsAt.toISOString(), 'endsAt:', endsAt.toISOString())
+      console.log('Time comparison: now < startsAt?', now < startsAt, 'now > endsAt?', now > endsAt)
+      
+      if (now < startsAt || now > endsAt) {
+        console.log('Challenge not active based on dates - returning 400')
+        return reply.code(400).send({ error: 'Challenge is not active' })
+      }
+    } else {
+      // If no dates, check status only
+      console.log('No dates on challenge, checking status only:', challenge.status)
+      if (challenge.status !== 'active') {
+        console.log('Status is not active - returning 400')
+        return reply.code(400).send({ error: 'Challenge is not active' })
+      }
     }
 
     // Get user balance
