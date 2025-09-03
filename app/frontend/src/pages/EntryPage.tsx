@@ -12,6 +12,66 @@ export function EntryPage() {
   const [timeRemaining, setTimeRemaining] = useState('')
   const [userRank, setUserRank] = useState<number | null>(null)
 
+  const renderPrizeDistribution = () => {
+    const dist = challenge?.challenge?.prizeDistribution
+    
+    // If no distribution or old format, show defaults
+    if (!dist || !dist.type) {
+      return (
+        <>
+          <p>🥇 1st Place: 40% of pot</p>
+          <p>🥈 2nd Place: 25% of pot</p>
+          <p>🥉 3rd Place: 15% of pot</p>
+        </>
+      )
+    }
+
+    // Render actual distribution rules
+    const items: JSX.Element[] = []
+    
+    dist.rules?.forEach((rule: any, index: number) => {
+      const amount = rule.type === 'percentage' ? `${rule.amount}%` : `${rule.amount} Gold`
+      
+      if (rule.position !== undefined) {
+        const emoji = rule.position === 1 ? '🥇' : rule.position === 2 ? '🥈' : rule.position === 3 ? '🥉' : '🏅'
+        items.push(
+          <p key={index}>
+            {emoji} Position {rule.position}: {amount} of pot
+          </p>
+        )
+      } else if (rule.range) {
+        items.push(
+          <p key={index}>
+            🎯 Positions {rule.range[0]}-{rule.range[1]}: {amount} {rule.split ? 'split' : 'each'}
+          </p>
+        )
+      } else if (rule.top_percent !== undefined) {
+        items.push(
+          <p key={index}>
+            📊 Top {rule.top_percent}%: {amount} split
+          </p>
+        )
+      }
+    })
+    
+    // Add rake info if present
+    if (dist.rake && dist.rake_type === 'percentage' && dist.rake > 0) {
+      items.push(
+        <p key="rake" className="text-xs text-gray-600 mt-1">
+          Platform fee: {dist.rake}%
+        </p>
+      )
+    }
+    
+    return items.length > 0 ? items : (
+      <>
+        <p>🥇 1st Place: 40% of pot</p>
+        <p>🥈 2nd Place: 25% of pot</p>
+        <p>🥉 3rd Place: 15% of pot</p>
+      </>
+    )
+  }
+
   const getObjectiveText = (challenge: any) => {
     if (!challenge?.level?.objectives?.primary) {
       return 'Complete the challenge as fast as you can!'
@@ -284,9 +344,7 @@ export function EntryPage() {
           <div className="bg-candy-purple/20 rounded-lg p-4">
             <h3 className="font-bold text-candy-purple mb-2">Prize Distribution</h3>
             <div className="space-y-1 text-sm">
-              <p>🥇 1st Place: 40% of pot</p>
-              <p>🥈 2nd Place: 25% of pot</p>
-              <p>🥉 3rd Place: 15% of pot</p>
+              {renderPrizeDistribution()}
             </div>
           </div>
         </div>

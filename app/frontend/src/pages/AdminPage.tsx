@@ -29,6 +29,7 @@ export function AdminPage() {
     minimum_players: 3,
     refund_on_insufficient: true,
   })
+  const [currentDistribution, setCurrentDistribution] = useState<any>(null)
 
   useEffect(() => {
     if (!user) {
@@ -68,6 +69,10 @@ export function AdminPage() {
         const challengeData = await api.challenge.getToday()
         console.log('Challenge data:', challengeData)
         setChallengeStatus('active')
+        // Store the current distribution from the active challenge
+        if (challengeData.challenge?.prizeDistribution) {
+          setCurrentDistribution(challengeData.challenge.prizeDistribution)
+        }
       } catch (error: any) {
         console.log('Challenge error:', error.response?.data)
         // If error message indicates challenge is closed
@@ -236,6 +241,20 @@ export function AdminPage() {
   }
 
   const calculatePrize = (rank: number) => {
+    // Use current distribution if available
+    if (currentDistribution && currentDistribution.type === 'percentage') {
+      const rule = currentDistribution.rules?.find((r: any) => r.position === rank)
+      if (rule && rule.type === 'percentage') {
+        // Calculate net pot after rake
+        let netPot = pot
+        if (currentDistribution.rake_type === 'percentage') {
+          netPot = pot * (100 - currentDistribution.rake) / 100
+        }
+        return Math.floor(netPot * rule.amount / 100)
+      }
+    }
+    
+    // Fallback to defaults
     if (rank === 1) return Math.floor(pot * 0.40)
     if (rank === 2) return Math.floor(pot * 0.25)
     if (rank === 3) return Math.floor(pot * 0.15)
@@ -424,12 +443,43 @@ export function AdminPage() {
           </div>
 
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
-            <h3 className="font-bold mb-2">Prize Distribution</h3>
+            <h3 className="font-bold mb-2">Current Prize Distribution</h3>
             <ul className="text-sm space-y-1">
-              <li>1st Place: 40% of pot = {Math.floor(pot * 0.40)} Gold Bars</li>
-              <li>2nd Place: 25% of pot = {Math.floor(pot * 0.25)} Gold Bars</li>
-              <li>3rd Place: 15% of pot = {Math.floor(pot * 0.15)} Gold Bars</li>
-              <li>Platform keeps: 0% (no rake configured)</li>
+              {currentDistribution && currentDistribution.type === 'percentage' ? (
+                <>
+                  {currentDistribution.rules?.map((rule: any, index: number) => {
+                    if (rule.position !== undefined) {
+                      const prize = calculatePrize(rule.position)
+                      return (
+                        <li key={index}>
+                          Position {rule.position}: {rule.amount}% of pot = {prize} Gold Bars
+                        </li>
+                      )
+                    } else if (rule.range) {
+                      return (
+                        <li key={index}>
+                          Positions {rule.range[0]}-{rule.range[1]}: {rule.amount}% {rule.split ? 'split' : 'each'}
+                        </li>
+                      )
+                    } else if (rule.top_percent !== undefined) {
+                      return (
+                        <li key={index}>
+                          Top {rule.top_percent}%: {rule.amount}% split
+                        </li>
+                      )
+                    }
+                    return null
+                  })}
+                  <li>Platform keeps: {currentDistribution.rake}% rake</li>
+                </>
+              ) : (
+                <>
+                  <li>1st Place: 40% of pot = {Math.floor(pot * 0.40)} Gold Bars</li>
+                  <li>2nd Place: 25% of pot = {Math.floor(pot * 0.25)} Gold Bars</li>
+                  <li>3rd Place: 15% of pot = {Math.floor(pot * 0.15)} Gold Bars</li>
+                  <li>Platform keeps: 0% (no rake configured)</li>
+                </>
+              )}
             </ul>
           </div>
         </div>

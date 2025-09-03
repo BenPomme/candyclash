@@ -92,6 +92,7 @@ const challengeRoutes: any = async (fastify: any) => {
         name: challenge.name,
         entryFee: challenge.entry_fee,
         endsAt: challenge.ends_at,
+        prizeDistribution: challenge.prize_distribution,
       },
       level: level.config,
       pot,
