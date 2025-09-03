@@ -5,7 +5,7 @@ import { api } from '../api/client'
 
 export function EntryPage() {
   const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
+  const { user, logout, updateBalance } = useAuthStore()
   const [challenge, setChallenge] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -130,6 +130,12 @@ export function EntryPage() {
     try {
       setIsLoading(true)
       const joinResponse = await api.challenge.join(challenge.challenge.id)
+      
+      // Update the local balance to reflect the entry fee deduction
+      if (user && challenge.challenge.entryFee) {
+        updateBalance(user.goldBalance - challenge.challenge.entryFee)
+      }
+      
       navigate('/game', {
         state: {
           attemptId: joinResponse.attemptId,
