@@ -9,10 +9,10 @@ interface Candy extends Phaser.GameObjects.Sprite {
 
 export class Match3Scene extends Phaser.Scene {
   private grid: (Candy | null)[][] = []
-  private gridWidth = 8
-  private gridHeight = 8
+  private gridWidth = 8  // Default, will be overridden by init
+  private gridHeight = 8  // Default, will be overridden by init
   private tileSize = 64
-  private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple']
+  private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple']  // Default, will be overridden
   private selectedCandy: Candy | null = null
   private canMove = false  // Start with moves disabled until data loads
   private score = 0
@@ -28,17 +28,59 @@ export class Match3Scene extends Phaser.Scene {
   private attemptId: string = ''
   private attemptToken: string = ''
   private onComplete?: () => void
+  private isTestPlay = false
 
   constructor() {
     super({ key: 'Match3Scene' })
   }
 
-  init(data: { attemptId: string; attemptToken: string; targetType: string; targetCount: number; onComplete?: () => void }) {
+  init(data: { 
+    attemptId: string; 
+    attemptToken: string; 
+    targetType: string; 
+    targetCount: number; 
+    gridWidth?: number;
+    gridHeight?: number;
+    candyColors?: string[];
+    isTestPlay?: boolean;
+    onComplete?: () => void 
+  }) {
     this.attemptId = data.attemptId
     this.attemptToken = data.attemptToken
     // No defaults - if data is missing, the game should not start
     this.targetType = data.targetType
     this.targetCount = data.targetCount
+    
+    // Set grid dimensions from data or use defaults
+    this.gridWidth = data.gridWidth || 8
+    this.gridHeight = data.gridHeight || 8
+    
+    // Set candy colors from data or use defaults
+    if (data.candyColors && data.candyColors.length >= 3) {
+      this.candyTypes = data.candyColors
+    }
+    
+    // Set test play flag
+    this.isTestPlay = data.isTestPlay || false
+    
+    // Adjust tile size based on grid dimensions to fit the screen
+    const maxBoardWidth = 550
+    const maxBoardHeight = 550
+    this.tileSize = Math.min(
+      Math.floor(maxBoardWidth / this.gridWidth),
+      Math.floor(maxBoardHeight / this.gridHeight),
+      64  // Maximum tile size
+    )
+    
+    console.log('Game configuration:', {
+      gridWidth: this.gridWidth,
+      gridHeight: this.gridHeight,
+      tileSize: this.tileSize,
+      candyTypes: this.candyTypes,
+      targetType: this.targetType,
+      targetCount: this.targetCount,
+      isTestPlay: this.isTestPlay
+    })
     
     if (!this.targetType || !this.targetCount) {
       console.error('ERROR: Challenge data missing!', { targetType: this.targetType, targetCount: this.targetCount })
@@ -49,22 +91,36 @@ export class Match3Scene extends Phaser.Scene {
     }
     
     this.startTime = Date.now()
-    this.collected = { red: 0, blue: 0, green: 0, yellow: 0, purple: 0 }
+    // Initialize collected object for all candy types
+    this.collected = {}
+    this.candyTypes.forEach(color => {
+      this.collected[color] = 0
+    })
     this.onComplete = data.onComplete
   }
 
   preload() {
     // Load candy images with their actual file extensions
+    // Map all possible candy colors to their image files
     const candyFiles: Record<string, string> = {
       'red': '/candies/red.webp',
       'blue': '/candies/blue.png', 
       'green': '/candies/green.jpg',
       'yellow': '/candies/yellow.png',
-      'purple': '/candies/orange.jpg'  // Map purple to orange
+      'purple': '/candies/orange.jpg',  // Map purple to orange image
+      'orange': '/candies/orange.jpg'   // Also support orange directly
     }
     
+    // Only load the candy types we're actually using
     this.candyTypes.forEach(color => {
-      this.load.image(color, candyFiles[color])
+      if (candyFiles[color]) {
+        this.load.image(color, candyFiles[color])
+        console.log('Loading candy:', color, 'from', candyFiles[color])
+      } else {
+        console.warn('No image file mapped for candy color:', color)
+        // Use a fallback image if color not mapped
+        this.load.image(color, candyFiles['red'])  // Use red as fallback
+      }
     })
     
     // Add error handling for image loading
@@ -464,34 +520,57 @@ export class Match3Scene extends Phaser.Scene {
         { fontSize: '48px', color: '#00ff00', fontFamily: 'Arial', stroke: '#000000', strokeThickness: 4 }
       ).setOrigin(0.5).setDepth(1000)
       
-      // Complete attempt
-      try {
-        const result = await api.attempt.complete(this.attemptId, {
+      // Complete attempt - skip API call for test play
+      if (this.isTestPlay) {
+        console.log('Test play completed:', {
           timeMs,
           collected: this.collected,
-          moves: this.moveCount,
-          attemptToken: this.attemptToken
+          moves: this.moveCount
         })
         
-        console.log('Attempt completed successfully:', result)
+        // Show test play results
+        this.add.text(
+          this.cameras.main.width / 2,
+          this.cameras.main.height / 2 + 60,
+          `Time: ${(timeMs / 1000).toFixed(1)}s | Moves: ${this.moveCount}`,
+          { fontSize: '24px', color: '#ffffff', fontFamily: 'Arial', stroke: '#000000', strokeThickness: 2 }
+        ).setOrigin(0.5).setDepth(1000)
         
         setTimeout(() => {
           if (this.onComplete) {
             this.onComplete()
-          } else {
-            window.location.href = '/leaderboard'
           }
-        }, 2000)
-      } catch (error) {
-        console.error('Failed to complete attempt:', error)
-        // Still navigate to leaderboard even if completion fails
-        setTimeout(() => {
-          if (this.onComplete) {
-            this.onComplete()
-          } else {
-            window.location.href = '/leaderboard'
-          }
-        }, 2000)
+        }, 3000)
+      } else {
+        // Regular game - submit to API
+        try {
+          const result = await api.attempt.complete(this.attemptId, {
+            timeMs,
+            collected: this.collected,
+            moves: this.moveCount,
+            attemptToken: this.attemptToken
+          })
+          
+          console.log('Attempt completed successfully:', result)
+          
+          setTimeout(() => {
+            if (this.onComplete) {
+              this.onComplete()
+            } else {
+              window.location.href = '/leaderboard'
+            }
+          }, 2000)
+        } catch (error) {
+          console.error('Failed to complete attempt:', error)
+          // Still navigate to leaderboard even if completion fails
+          setTimeout(() => {
+            if (this.onComplete) {
+              this.onComplete()
+            } else {
+              window.location.href = '/leaderboard'
+            }
+          }, 2000)
+        }
       }
     }
   }
