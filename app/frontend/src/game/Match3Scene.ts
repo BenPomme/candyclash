@@ -58,6 +58,12 @@ export class Match3Scene extends Phaser.Scene {
     // Set candy colors from data or use defaults
     if (data.candyColors && data.candyColors.length >= 3) {
       this.candyTypes = data.candyColors
+      console.log('Using custom candy colors:', this.candyTypes)
+    } else if (data.candyColors && data.candyColors.length > 0) {
+      console.warn('Not enough candy colors provided (need at least 3):', data.candyColors)
+      // Still use defaults if less than 3 colors
+    } else {
+      console.log('No candy colors provided, using defaults:', this.candyTypes)
     }
     
     // Set test play flag

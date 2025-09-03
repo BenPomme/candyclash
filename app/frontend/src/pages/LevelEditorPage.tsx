@@ -77,6 +77,9 @@ export function LevelEditorPage() {
       },
     }
     
+    console.log('Test play configuration:', testLevel)
+    console.log('Selected candy colors:', candyColors)
+    
     // Store as test level
     sessionStorage.setItem('testLevel', JSON.stringify(testLevel))
     sessionStorage.setItem('isTestPlay', 'true')
@@ -198,7 +201,7 @@ export function LevelEditorPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Candy Colors
+                Candy Colors (Select at least 3, currently {candyColors.length} selected)
               </label>
               <div className="flex flex-wrap gap-2">
                 {['red', 'yellow', 'green', 'blue', 'purple', 'orange'].map((color) => (
@@ -210,7 +213,13 @@ export function LevelEditorPage() {
                         if (e.target.checked) {
                           setCandyColors([...candyColors, color])
                         } else {
-                          setCandyColors(candyColors.filter((c) => c !== color))
+                          // Prevent unchecking if it would leave less than 3 colors
+                          const newColors = candyColors.filter((c) => c !== color)
+                          if (newColors.length >= 3) {
+                            setCandyColors(newColors)
+                          } else {
+                            alert('You must select at least 3 candy colors!')
+                          }
                         }
                       }}
                       className="w-4 h-4"

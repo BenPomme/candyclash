@@ -52,6 +52,7 @@ export function GamePage() {
   // Function to initialize the game with valid config
   const initializeGame = (config: any) => {
     console.log('Initializing game with config:', config)
+    console.log('Candy colors from config:', config?.candies?.colors)
     
     // Create Phaser game instance
     const phaserConfig = createGameConfig('game-container')
