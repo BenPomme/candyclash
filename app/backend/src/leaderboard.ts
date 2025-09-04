@@ -1,5 +1,6 @@
-const { getLeaderboard, getPot } = require('./firebase')
+const { getLeaderboard, getPot, collections } = require('./firebase')
 const { registerRoutes } = require('./route-helper')
+const { PayoutCalculator } = require('./utils/payout-calculator')
 
 const leaderboardRoutes: any = async (fastify: any) => {
   const routes = registerRoutes(fastify)
@@ -14,6 +15,36 @@ const leaderboardRoutes: any = async (fastify: any) => {
     // Get pot
     const pot = await getPot(challengeId)
     
+    // Get challenge to get prize distribution
+    let prizeDistribution = null
+    let calculatedPrizes: any[] = []
+    
+    try {
+      const challengeDoc = await collections.challenges.doc(challengeId).get()
+      if (challengeDoc.exists) {
+        const challenge = challengeDoc.data() as any
+        prizeDistribution = challenge.prize_distribution
+        
+        // Calculate prizes for all winning positions
+        if (prizeDistribution && prizeDistribution.type) {
+          const payoutResult = PayoutCalculator.calculatePayouts(
+            entries,
+            prizeDistribution,
+            pot,
+            challenge.entry_fee || 20
+          )
+          
+          // Create a map of position to prize amount
+          calculatedPrizes = payoutResult.payouts.map((payout: any) => ({
+            position: payout.position,
+            amount: payout.amount
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Failed to get prize distribution:', error)
+    }
+    
     // Find user's rank if authenticated
     let userRank = null
     if (request.user) {
@@ -27,6 +58,8 @@ const leaderboardRoutes: any = async (fastify: any) => {
       entries,
       pot,
       userRank,
+      prizeDistribution,
+      calculatedPrizes,
       closesAt: new Date().setHours(23, 59, 59, 999)
     })
   })

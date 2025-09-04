@@ -12,6 +12,7 @@ export function LeaderboardPage() {
   const [pot, setPot] = useState(0)
   const [_userRank, setUserRank] = useState<number | null>(null)
   const [closesAt, setClosesAt] = useState<any>(null)
+  const [calculatedPrizes, setCalculatedPrizes] = useState<any[]>([])
 
   useEffect(() => {
     if (!user) {
@@ -81,6 +82,7 @@ export function LeaderboardPage() {
       setPot(data.pot || 0)
       setUserRank(data.userRank)
       setClosesAt(data.closesAt)
+      setCalculatedPrizes(data.calculatedPrizes || [])
       setIsLoading(false)
     } catch (error: any) {
       console.error('Failed to load leaderboard:', error)
@@ -100,6 +102,13 @@ export function LeaderboardPage() {
   }
   
   const calculatePrize = (rank: number) => {
+    // Use calculated prizes from backend if available
+    const prizeData = calculatedPrizes.find((p: any) => p.position === rank)
+    if (prizeData) {
+      return prizeData.amount
+    }
+    
+    // Fallback to default calculation
     if (rank === 1) return Math.floor(pot * 0.40)
     if (rank === 2) return Math.floor(pot * 0.25)
     if (rank === 3) return Math.floor(pot * 0.15)
@@ -160,6 +169,8 @@ export function LeaderboardPage() {
                         ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-400'
                         : rank === 3
                         ? 'bg-gradient-to-r from-orange-100 to-orange-200 border-2 border-orange-400'
+                        : prize > 0
+                        ? 'bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300'
                         : isCurrentUser
                         ? 'bg-candy-blue/10 border-2 border-candy-blue'
                         : 'bg-white border-2 border-gray-200'
@@ -206,8 +217,8 @@ export function LeaderboardPage() {
         </div>
 
         <div className="text-center text-sm text-gray-500">
-          <p>Top 3 players win Gold Bars when the daily challenge closes!</p>
-          <p>Everyone receives a booster for participating.</p>
+          <p>Players in prize positions win Gold Bars when the daily challenge closes!</p>
+          <p>Prize winners are highlighted in green above.</p>
         </div>
       </div>
     </div>

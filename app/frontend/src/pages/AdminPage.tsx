@@ -17,6 +17,7 @@ export function AdminPage() {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('default-level')
   const [showLevelSelector, setShowLevelSelector] = useState(false)
   const [showDistributionConfig, setShowDistributionConfig] = useState(false)
+  const [attemptsPerDay, setAttemptsPerDay] = useState<number>(2)
   const [distributionConfig, setDistributionConfig] = useState<DistributionConfig>({
     type: 'percentage',
     rules: [
@@ -30,6 +31,8 @@ export function AdminPage() {
     refund_on_insufficient: true,
   })
   const [currentDistribution, setCurrentDistribution] = useState<any>(null)
+  const [feedback, setFeedback] = useState<any[]>([])
+  const [showFeedback, setShowFeedback] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -46,6 +49,24 @@ export function AdminPage() {
     loadLeaderboard()
     loadLevels()
   }, [user, navigate])
+
+  const loadFeedback = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/feedback`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setFeedback(data.feedback || [])
+      }
+    } catch (error) {
+      console.error('Failed to load feedback:', error)
+    }
+  }
 
   const loadLevels = async () => {
     try {
@@ -165,7 +186,6 @@ export function AdminPage() {
     try {
       const selectedLevel = levels.find(l => l.id === selectedLevelId)
       const entryFee = selectedLevel?.config?.difficulty?.entryFee || 20
-      const attemptsPerDay = selectedLevel?.config?.difficulty?.attemptsPerDay || 2
       
       const token = localStorage.getItem('token')
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/challenge/create`, {
@@ -342,7 +362,24 @@ export function AdminPage() {
                   )}
                   {showDistributionConfig && (
                     <div className="mt-4">
-                      <h3 className="text-lg font-medium mb-2">Prize Distribution Configuration</h3>
+                      <h3 className="text-lg font-medium mb-2">Challenge Configuration</h3>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Attempts Per Day:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={attemptsPerDay}
+                          onChange={(e) => setAttemptsPerDay(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">How many times a player can attempt the challenge each day (1-10)</p>
+                      </div>
+                      
+                      <h3 className="text-lg font-medium mb-2">Prize Distribution</h3>
                       <DistributionConfigurator
                         value={distributionConfig}
                         onChange={setDistributionConfig}
@@ -385,6 +422,15 @@ export function AdminPage() {
                   className="w-full px-6 py-3 bg-purple-500 text-white font-bold rounded-full hover:bg-purple-600 transition-colors"
                 >
                   Level Editor
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowFeedback(!showFeedback)
+                    if (!showFeedback) await loadFeedback()
+                  }}
+                  className="w-full px-6 py-3 bg-indigo-500 text-white font-bold rounded-full hover:bg-indigo-600 transition-colors"
+                >
+                  {showFeedback ? 'Hide Feedback' : 'View Player Feedback'}
                 </button>
                 <button
                   onClick={handleSeedDatabase}
@@ -482,6 +528,43 @@ export function AdminPage() {
               )}
             </ul>
           </div>
+
+          {showFeedback && (
+            <div className="bg-white p-6 rounded-lg mt-6">
+              <h2 className="text-xl font-bold mb-4">Player Feedback</h2>
+              {feedback.length === 0 ? (
+                <p className="text-gray-500">No feedback received yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {feedback.map((item) => (
+                    <div key={item.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="text-sm text-gray-600">
+                          <span className="font-medium">{item.user_email || 'Anonymous'}</span>
+                          <span className="ml-2">
+                            {item.created_at ? new Date(item.created_at._seconds ? item.created_at._seconds * 1000 : item.created_at).toLocaleDateString() : 'Recently'}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          item.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                          item.status === 'reviewed' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {item.status || 'new'}
+                        </span>
+                      </div>
+                      <p className="text-gray-800 whitespace-pre-wrap">{item.message}</p>
+                      {item.category && item.category !== 'general' && (
+                        <span className="inline-block mt-2 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

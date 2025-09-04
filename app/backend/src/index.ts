@@ -9,6 +9,7 @@ const attemptRoutes = require('./attempts').default
 const leaderboardRoutes = require('./leaderboard').default
 const levelRoutes = require('./levels').default
 const adminRoutes = require('./admin').default
+const feedbackRoutes = require('./feedback').default
 
 // const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'https://candyclash-85fd4.web.app'
 
@@ -37,6 +38,7 @@ async function buildApp() {
   await fastify.register(leaderboardRoutes)
   await fastify.register(levelRoutes)
   await fastify.register(adminRoutes)
+  await fastify.register(feedbackRoutes)
 
   // Health check on both paths
   const healthHandler = async () => {

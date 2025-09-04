@@ -55,6 +55,7 @@ const collections = {
   attempts: firestore.collection('attempts'),
   transactions: firestore.collection('transactions'),
   boosters: firestore.collection('boosters'),
+  feedback: firestore.collection('feedback'),
 }
 
 // Helper functions for Firestore
@@ -115,20 +116,58 @@ async function addToLeaderboard(
   })
   
   try {
-    await leaderboardRef.child(attemptId).set({
-      userId,
-      timeMs,
-      displayName: finalDisplayName,
-      completedAt: USE_MOCK ? Date.now() : admin.database.ServerValue.TIMESTAMP,
-    })
-    console.log('Successfully added to leaderboard')
+    // First, check if this user already has an entry in today's leaderboard
+    const existingSnapshot = await leaderboardRef
+      .orderByChild('userId')
+      .equalTo(userId)
+      .once('value')
     
-    // Verify the entry was added
-    const verification = await leaderboardRef.child(attemptId).once('value')
-    if (verification.exists()) {
-      console.log('Verified entry exists in leaderboard:', verification.val())
-    } else {
-      console.error('ERROR: Entry not found after adding to leaderboard')
+    let shouldAdd = true
+    let existingAttemptId: string | null = null
+    let existingTimeMs: number | null = null
+    
+    if (existingSnapshot.exists()) {
+      // User already has an entry, check if new score is better
+      existingSnapshot.forEach((child) => {
+        existingAttemptId = child.key
+        existingTimeMs = child.val().timeMs
+        
+        console.log('Found existing entry for user:', {
+          existingAttemptId,
+          existingTimeMs,
+          newTimeMs: timeMs
+        })
+        
+        // Only keep the best score (lowest time)
+        if (timeMs >= existingTimeMs) {
+          shouldAdd = false
+          console.log('New score is not better than existing, skipping')
+        }
+      })
+      
+      // If new score is better, remove the old entry
+      if (shouldAdd && existingAttemptId) {
+        console.log('Removing old entry:', existingAttemptId)
+        await leaderboardRef.child(existingAttemptId).remove()
+      }
+    }
+    
+    if (shouldAdd) {
+      await leaderboardRef.child(attemptId).set({
+        userId,
+        timeMs,
+        displayName: finalDisplayName,
+        completedAt: USE_MOCK ? Date.now() : admin.database.ServerValue.TIMESTAMP,
+      })
+      console.log('Successfully added/updated leaderboard entry')
+      
+      // Verify the entry was added
+      const verification = await leaderboardRef.child(attemptId).once('value')
+      if (verification.exists()) {
+        console.log('Verified entry exists in leaderboard:', verification.val())
+      } else {
+        console.error('ERROR: Entry not found after adding to leaderboard')
+      }
     }
   } catch (error) {
     console.error('Failed to add to leaderboard:', error)

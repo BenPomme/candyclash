@@ -11,6 +11,10 @@ export function EntryPage() {
   const [error, setError] = useState('')
   const [timeRemaining, setTimeRemaining] = useState('')
   const [userRank, setUserRank] = useState<number | null>(null)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false)
 
   const renderPrizeDistribution = () => {
     const dist = challenge?.challenge?.prizeDistribution
@@ -210,6 +214,25 @@ export function EntryPage() {
     }
   }
 
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackMessage.trim()) return
+    
+    setFeedbackSubmitting(true)
+    try {
+      await api.feedback.submit(feedbackMessage)
+      setFeedbackSuccess(true)
+      setFeedbackMessage('')
+      setTimeout(() => {
+        setShowFeedback(false)
+        setFeedbackSuccess(false)
+      }, 2000)
+    } catch (err) {
+      console.error('Failed to submit feedback:', err)
+    } finally {
+      setFeedbackSubmitting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -279,6 +302,15 @@ export function EntryPage() {
           Logout
         </button>
       </div>
+      
+      {/* Feedback button on the right side */}
+      <button
+        onClick={() => setShowFeedback(true)}
+        className="absolute right-4 top-1/2 -translate-y-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-l-lg shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all font-bold writing-mode-vertical"
+        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+      >
+        SEND FEEDBACK
+      </button>
       
       <div className="candy-card max-w-lg w-full">
           <div className="text-center mb-6">
@@ -390,6 +422,55 @@ export function EntryPage() {
           </p>
         )}
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-2xl font-candy text-candy-purple mb-4">Send Feedback</h2>
+            
+            {feedbackSuccess ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">✅</div>
+                <p className="text-lg font-bold text-green-600">Thank you for your feedback!</p>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder="Tell us what you think about the game..."
+                  className="w-full h-32 p-3 border-2 border-gray-300 rounded-lg focus:border-candy-purple focus:outline-none resize-none"
+                  maxLength={1000}
+                />
+                <p className="text-sm text-gray-500 mt-1 text-right">
+                  {feedbackMessage.length}/1000 characters
+                </p>
+                
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleFeedbackSubmit}
+                    disabled={!feedbackMessage.trim() || feedbackSubmitting}
+                    className="flex-1 candy-button disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {feedbackSubmitting ? 'Sending...' : 'Send Feedback'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowFeedback(false)
+                      setFeedbackMessage('')
+                      setFeedbackSuccess(false)
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-bold rounded-full hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

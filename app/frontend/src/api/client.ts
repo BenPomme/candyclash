@@ -128,6 +128,13 @@ class ApiClient {
       return response.data
     },
   }
+
+  feedback = {
+    submit: async (message: string, category?: string) => {
+      const response = await this.client.post('/feedback', { message, category })
+      return response.data
+    },
+  }
 }
 
 export const api = new ApiClient()
