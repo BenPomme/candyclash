@@ -12,7 +12,7 @@ export class Match3Scene extends Phaser.Scene {
   private gridWidth = 8  // Default, will be overridden by init
   private gridHeight = 8  // Default, will be overridden by init
   private tileSize = 64
-  private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple']  // Default, will be overridden
+  private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']  // Default with all 6 colors
   private selectedCandy: Candy | null = null
   private canMove = false  // Start with moves disabled until data loads
   private score = 0
@@ -106,15 +106,14 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   preload() {
-    // Load candy images with their actual file extensions
-    // Map all possible candy colors to their image files
+    // Load candy images - all are PNG files now
     const candyFiles: Record<string, string> = {
-      'red': '/candies/red.webp',
+      'red': '/candies/red.png',
       'blue': '/candies/blue.png', 
-      'green': '/candies/green.jpg',
+      'green': '/candies/green.png',
       'yellow': '/candies/yellow.png',
-      'purple': '/candies/orange.jpg',  // Map purple to orange image
-      'orange': '/candies/orange.jpg'   // Also support orange directly
+      'purple': '/candies/purple.png',
+      'orange': '/candies/orange.png'
     }
     
     // Only load the candy types we're actually using

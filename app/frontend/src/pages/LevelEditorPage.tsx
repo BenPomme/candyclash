@@ -10,7 +10,7 @@ export function LevelEditorPage() {
   const [gridSize, setGridSize] = useState({ width: 8, height: 8 })
   const [objective, setObjective] = useState({ type: 'collect', target: 'yellow', count: 100 })
   const [entryFee, setEntryFee] = useState(20)
-  const [candyColors, setCandyColors] = useState(['red', 'yellow', 'green', 'blue', 'purple'])
+  const [candyColors, setCandyColors] = useState(['red', 'yellow', 'green', 'blue', 'purple', 'orange'])
 
   useEffect(() => {
     if (!user?.isAdmin) {

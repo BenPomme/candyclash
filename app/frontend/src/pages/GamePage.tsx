@@ -70,7 +70,7 @@ export function GamePage() {
         targetCount: config.objectives.primary.count,
         gridWidth: config?.grid?.width || 8,
         gridHeight: config?.grid?.height || 8,
-        candyColors: config?.candies?.colors || ['red', 'blue', 'green', 'yellow', 'purple'],
+        candyColors: config?.candies?.colors || ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
         isTestPlay,
         onComplete: () => {
           if (isTestPlay) {
