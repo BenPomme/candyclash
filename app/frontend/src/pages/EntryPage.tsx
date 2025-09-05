@@ -282,34 +282,38 @@ export function EntryPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center px-4">
-      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-        <div className="text-sm text-gray-600">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-3 z-10">
+        <div className="text-xs md:text-sm text-gray-600 hidden md:block">
           {user?.displayName || user?.email}
           {user?.isAdmin && <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">ADMIN</span>}
         </div>
         {user?.isAdmin && (
           <button
             onClick={() => navigate('/admin')}
-            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+            className="px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
           >
-            Admin Panel
+            Admin
           </button>
         )}
         <button
           onClick={logout}
-          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          className="px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
         >
           Logout
         </button>
       </div>
       
-      {/* Feedback button on the right side */}
+      {/* Feedback button - horizontal on mobile, vertical on desktop */}
       <button
         onClick={() => setShowFeedback(true)}
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-l-lg shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all font-bold writing-mode-vertical"
-        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+        className="fixed md:absolute bottom-4 right-4 md:right-4 md:top-1/2 md:-translate-y-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-2 md:px-4 md:py-3 rounded-lg md:rounded-l-lg shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all font-bold text-sm md:text-base"
       >
-        SEND FEEDBACK
+        <span className="hidden md:block" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+          FEEDBACK
+        </span>
+        <span className="block md:hidden">
+          FEEDBACK
+        </span>
       </button>
       
       <div className="candy-card max-w-lg w-full">
@@ -321,16 +325,16 @@ export function EntryPage() {
             </div>
           </div>
           
-          <h1 className="text-3xl font-candy text-candy-pink mb-2">
+          <h1 className="text-2xl md:text-3xl font-candy text-candy-pink mb-2">
             {challenge?.challenge.name || 'Daily Challenge'}
           </h1>
           
           <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-3 mb-3">
             <div className="text-sm text-gray-600 mb-1">Challenge ends in</div>
-            <div className="text-2xl font-bold text-candy-purple">{timeRemaining}</div>
+            <div className="text-xl md:text-2xl font-bold text-candy-purple">{timeRemaining}</div>
           </div>
 
-          <div className="flex justify-center items-center gap-4 text-lg mb-3">
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4 text-base md:text-lg mb-3">
             <div className="flex items-center gap-2">
               <img src="/goldbars.png" alt="Gold" className="w-6 h-6" />
               <span className="font-bold">{user?.goldBalance || 0}</span>

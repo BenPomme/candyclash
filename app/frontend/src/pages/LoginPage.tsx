@@ -36,8 +36,8 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="candy-card max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-candy text-candy-pink mb-2">Candy Clash</h1>
-          <p className="text-gray-600">Compete for Gold Bars!</p>
+          <h1 className="text-3xl md:text-4xl font-candy text-candy-pink mb-2">Candy Clash</h1>
+          <p className="text-sm md:text-base text-gray-600">Compete for Gold Bars!</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

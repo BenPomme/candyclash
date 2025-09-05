@@ -282,23 +282,97 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   private enableInput(boardX: number, boardY: number) {
-    this.input.on('gameobjectdown', (_pointer: Phaser.Input.Pointer, gameObject: Candy) => {
+    let swipeStartCandy: Candy | null = null
+    let swipeStartX = 0
+    let swipeStartY = 0
+    const swipeThreshold = 30 // Minimum distance for a swipe
+    
+    // Handle both tap and swipe
+    this.input.on('gameobjectdown', (pointer: Phaser.Input.Pointer, gameObject: Candy) => {
       if (!this.canMove) return
       
-      if (!this.selectedCandy) {
-        this.selectedCandy = gameObject
-        gameObject.setDisplaySize(64, 64)
-      } else {
-        // Check if adjacent
-        const rowDiff = Math.abs(this.selectedCandy.row - gameObject.row)
-        const colDiff = Math.abs(this.selectedCandy.col - gameObject.col)
+      // Store the candy and position where the touch/click started
+      swipeStartCandy = gameObject
+      swipeStartX = pointer.x
+      swipeStartY = pointer.y
+      
+      // Visual feedback - make candy glow/pulse
+      gameObject.setDisplaySize(64, 64)
+      this.tweens.add({
+        targets: gameObject,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        duration: 100,
+        yoyo: true,
+        ease: 'Power1'
+      })
+    })
+    
+    // Handle swipe/drag end
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (!this.canMove || !swipeStartCandy) return
+      
+      const swipeEndX = pointer.x
+      const swipeEndY = pointer.y
+      const deltaX = swipeEndX - swipeStartX
+      const deltaY = swipeEndY - swipeStartY
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+      
+      // Check if it was a swipe (moved enough distance)
+      if (distance > swipeThreshold) {
+        // Determine swipe direction
+        let targetRow = swipeStartCandy.row
+        let targetCol = swipeStartCandy.col
         
-        if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
-          this.swapCandies(this.selectedCandy, gameObject, boardX, boardY)
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Horizontal swipe
+          targetCol += deltaX > 0 ? 1 : -1
+        } else {
+          // Vertical swipe
+          targetRow += deltaY > 0 ? 1 : -1
         }
         
-        this.selectedCandy.setDisplaySize(56, 56)
-        this.selectedCandy = null
+        // Check if target is valid
+        if (targetRow >= 0 && targetRow < this.gridHeight && 
+            targetCol >= 0 && targetCol < this.gridWidth) {
+          const targetCandy = this.grid[targetRow][targetCol]
+          if (targetCandy) {
+            this.swapCandies(swipeStartCandy, targetCandy, boardX, boardY)
+          }
+        }
+        
+        // Reset visual
+        swipeStartCandy.setDisplaySize(56, 56)
+      } else {
+        // It was a tap - handle old click logic for desktop
+        if (!this.selectedCandy || this.selectedCandy === swipeStartCandy) {
+          this.selectedCandy = swipeStartCandy
+          // Keep it selected (larger size)
+        } else {
+          // Check if adjacent to selected candy
+          const rowDiff = Math.abs(this.selectedCandy.row - swipeStartCandy.row)
+          const colDiff = Math.abs(this.selectedCandy.col - swipeStartCandy.col)
+          
+          if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+            this.swapCandies(this.selectedCandy, swipeStartCandy, boardX, boardY)
+          }
+          
+          // Reset both candies
+          this.selectedCandy.setDisplaySize(56, 56)
+          swipeStartCandy.setDisplaySize(56, 56)
+          this.selectedCandy = null
+        }
+      }
+      
+      // Reset swipe tracking
+      swipeStartCandy = null
+    })
+    
+    // Handle pointer leave (when finger leaves the screen without up event)
+    this.input.on('pointerout', () => {
+      if (swipeStartCandy) {
+        swipeStartCandy.setDisplaySize(56, 56)
+        swipeStartCandy = null
       }
     })
   }

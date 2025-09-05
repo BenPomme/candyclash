@@ -116,15 +116,15 @@ export function LeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen relative py-8 px-4">
-      <div className="absolute top-4 right-4 flex items-center gap-3">
-        <div className="text-sm text-gray-600">
+    <div className="min-h-screen relative py-4 md:py-8 px-4">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex items-center gap-2 md:gap-3">
+        <div className="text-xs md:text-sm text-gray-600 hidden sm:block">
           {user?.displayName || user?.email}
           {user?.isAdmin && <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">ADMIN</span>}
         </div>
         <button
           onClick={logout}
-          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          className="px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
         >
           Logout
         </button>
@@ -133,18 +133,18 @@ export function LeaderboardPage() {
       <div className="max-w-4xl mx-auto">
         <div className="candy-card mb-6">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-candy text-candy-pink mb-2">Leaderboard</h1>
-            <div className="flex justify-center items-center gap-6">
+            <h1 className="text-2xl md:text-3xl font-candy text-candy-pink mb-2">Leaderboard</h1>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-6">
               <div>
                 <span className="text-sm text-gray-600">Prize Pool:</span>
-                <span className="text-2xl font-bold text-candy-green ml-2 flex items-center gap-1 inline-flex">
+                <span className="text-xl md:text-2xl font-bold text-candy-green ml-2 flex items-center gap-1 inline-flex">
                   <img src="/goldbars.png" alt="Gold" className="w-6 h-6" />
                   {pot}
                 </span>
               </div>
               <div>
                 <span className="text-sm text-gray-600">Closes in:</span>
-                <span className="text-2xl font-bold text-candy-orange ml-2">{timeLeft}</span>
+                <span className="text-xl md:text-2xl font-bold text-candy-orange ml-2">{timeLeft}</span>
               </div>
             </div>
           </div>
@@ -177,15 +177,15 @@ export function LeaderboardPage() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold">
+                      <div className="text-xl md:text-2xl font-bold">
                         {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}
                       </div>
                       <div>
-                        <p className="font-bold">
+                        <p className="font-bold text-sm md:text-base">
                           {entry.displayName}
-                          {isCurrentUser && <span className="text-candy-blue ml-2">(You)</span>}
+                          {isCurrentUser && <span className="text-candy-blue ml-2 text-xs md:text-sm">(You)</span>}
                         </p>
-                        <p className="text-sm text-gray-600">Time: {formatTime(entry.timeMs)}</p>
+                        <p className="text-xs md:text-sm text-gray-600">Time: {formatTime(entry.timeMs)}</p>
                       </div>
                     </div>
                     {prize > 0 && (

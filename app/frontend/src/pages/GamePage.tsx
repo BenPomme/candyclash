@@ -148,8 +148,8 @@ export function GamePage() {
   return (
     <div className="min-h-screen relative bg-gradient-to-br from-purple-100 to-pink-100">
       {isTestPlay && (
-        <div className="absolute top-4 left-4 px-4 py-2 bg-yellow-500 text-white rounded-lg z-10">
-          TEST PLAY MODE
+        <div className="absolute top-2 left-2 md:top-4 md:left-4 px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-yellow-500 text-white rounded-lg z-10">
+          TEST PLAY
         </div>
       )}
       <button
@@ -162,22 +162,22 @@ export function GamePage() {
             logout()
           }
         }}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors z-10"
+        className="absolute top-2 right-2 md:top-4 md:right-4 px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors z-10"
       >
-        {isTestPlay ? 'Exit Test' : 'Logout'}
+        {isTestPlay ? 'Exit' : 'Quit'}
       </button>
       
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-4">
-          <div className="bg-gradient-to-r from-candy-yellow to-candy-orange rounded-full px-6 py-3 inline-block mb-2">
-            <h2 className="text-xl font-bold text-white">{getObjectiveText()}</h2>
+      <div className="container mx-auto px-2 md:px-4 py-4 md:py-8">
+        <div className="text-center mb-2 md:mb-4">
+          <div className="bg-gradient-to-r from-candy-yellow to-candy-orange rounded-full px-4 py-2 md:px-6 md:py-3 inline-block mb-1 md:mb-2">
+            <h2 className="text-base md:text-xl font-bold text-white">{getObjectiveText()}</h2>
           </div>
-          <h1 className="text-3xl font-candy text-candy-pink">Game In Progress</h1>
+          <h1 className="text-xl md:text-3xl font-candy text-candy-pink hidden md:block">Game In Progress</h1>
         </div>
         
         <div className="flex justify-center">
-          <div className="bg-white rounded-lg shadow-2xl p-4">
-            <div id="game-container" className="mx-auto relative" style={{ width: '600px', height: '700px' }} ref={gameContainerRef}>
+          <div className="bg-white rounded-lg shadow-2xl p-2 md:p-4">
+            <div id="game-container" className="mx-auto relative" ref={gameContainerRef}>
               {isLoadingChallenge && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 rounded">
                   <div className="text-center">
@@ -188,11 +188,11 @@ export function GamePage() {
               )}
             </div>
             
-            <div className="mt-4 flex justify-center">
+            <div className="mt-2 md:mt-4 flex justify-center">
               
               <button
                 onClick={() => navigate('/entry')}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                className="px-3 py-1 md:px-4 md:py-2 text-sm md:text-base bg-red-500 text-white rounded-lg hover:bg-red-600"
               >
                 Exit Game
               </button>
