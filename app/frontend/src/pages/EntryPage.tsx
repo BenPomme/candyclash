@@ -374,7 +374,7 @@ export function EntryPage() {
 
           <div className="bg-candy-green/20 rounded-lg p-4">
             <h3 className="font-bold text-candy-green mb-2">Attempts Remaining</h3>
-            <p className="text-2xl">{challenge?.attemptsLeft || 0} / 2 today</p>
+            <p className="text-2xl">{challenge?.attemptsLeft || 0} / {challenge?.challenge?.attemptsPerDay || 2} today</p>
           </div>
 
           <div className="bg-candy-purple/20 rounded-lg p-4">

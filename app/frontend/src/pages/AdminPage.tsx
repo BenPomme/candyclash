@@ -263,14 +263,52 @@ export function AdminPage() {
   const calculatePrize = (rank: number) => {
     // Use current distribution if available
     if (currentDistribution && currentDistribution.type === 'percentage') {
-      const rule = currentDistribution.rules?.find((r: any) => r.position === rank)
-      if (rule && rule.type === 'percentage') {
+      // First check for exact position match
+      const positionRule = currentDistribution.rules?.find((r: any) => r.position === rank)
+      if (positionRule && positionRule.type === 'percentage') {
         // Calculate net pot after rake
         let netPot = pot
         if (currentDistribution.rake_type === 'percentage') {
           netPot = pot * (100 - currentDistribution.rake) / 100
         }
-        return Math.floor(netPot * rule.amount / 100)
+        return Math.floor(netPot * positionRule.amount / 100)
+      }
+      
+      // Check for range-based rules
+      const rangeRule = currentDistribution.rules?.find((r: any) => {
+        if (r.range && Array.isArray(r.range) && r.range.length === 2) {
+          const [start, end] = r.range
+          return rank >= start && rank <= end
+        }
+        return false
+      })
+      
+      if (rangeRule && rangeRule.type === 'percentage') {
+        // Calculate net pot after rake
+        let netPot = pot
+        if (currentDistribution.rake_type === 'percentage') {
+          netPot = pot * (100 - currentDistribution.rake) / 100
+        }
+        
+        // Calculate total amount for the range
+        const totalForRange = netPot * rangeRule.amount / 100
+        
+        // If split is true, divide among eligible players in the range
+        if (rangeRule.split) {
+          // Count how many players are actually in this range
+          const [start, end] = rangeRule.range
+          const playersInRange = leaderboard.filter((_, idx) => {
+            const position = idx + 1
+            return position >= start && position <= end
+          }).length
+          
+          if (playersInRange > 0) {
+            return Math.floor(totalForRange / playersInRange)
+          }
+        } else {
+          // If not split, each player gets the full percentage
+          return Math.floor(totalForRange)
+        }
       }
     }
     

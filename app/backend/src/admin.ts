@@ -232,6 +232,16 @@ const adminRoutes: any = async (fastify: any) => {
           }
         })
         
+        // Update global stats with payout (positive gold change)
+        const { updateGlobalStats } = require('./firebase')
+        await updateGlobalStats(payout.userId, payout.amount, payout.displayName)
+        
+        // Mark as win if in top 3
+        if (payout.position <= 3) {
+          const { incrementGamesPlayed } = require('./firebase')
+          await incrementGamesPlayed(payout.userId, true)
+        }
+        
         processedPayouts.push({
           position: payout.position,
           userId: payout.userId,
@@ -308,6 +318,10 @@ const adminRoutes: any = async (fastify: any) => {
     const endTime = new Date()
     endTime.setHours(23, 59, 59, 999)
     
+    // Generate a cryptographically secure seed for deterministic board generation
+    const crypto = require('crypto')
+    const boardSeed = crypto.randomBytes(16).toString('hex')
+    
     try {
       // First check if there's an existing challenge
       const existingDoc = await collections.challenges.doc('daily-challenge').get()
@@ -329,6 +343,7 @@ const adminRoutes: any = async (fastify: any) => {
         ends_at: endTime,
         status: 'active',
         created_at: new Date(),
+        board_seed: boardSeed, // Add the deterministic seed
         prize_distribution: prizeDistribution || DEFAULT_TEMPLATES[0].config // Use default if not provided
       }
       
@@ -375,6 +390,32 @@ const adminRoutes: any = async (fastify: any) => {
       return reply.code(403).send({ error: 'Admin access required' })
     }
     return reply.code(501).send({ error: 'Not implemented yet' })
+  })
+  
+  // Manual trigger for auto-close (for testing)
+  routes.post('/admin/trigger-auto-close', async (request, reply) => {
+    if (!request.user?.isAdmin) {
+      return reply.code(403).send({ error: 'Admin access required' })
+    }
+    
+    console.log('Manually triggering auto-close check')
+    
+    try {
+      const scheduled = require('./scheduled')
+      // Call the auto-close function directly
+      await scheduled.autoCloseChallenges({ eventId: 'manual-trigger' })
+      
+      return reply.send({
+        success: true,
+        message: 'Auto-close check triggered successfully'
+      })
+    } catch (error) {
+      console.error('Error triggering auto-close:', error)
+      return reply.code(500).send({ 
+        error: 'Failed to trigger auto-close',
+        details: error.message 
+      })
+    }
   })
 
   routes.post('/admin/reset', async (request, reply) => {

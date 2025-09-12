@@ -7,11 +7,50 @@ interface Candy extends Phaser.GameObjects.Sprite {
   candyType: string
 }
 
+// Seeded Random Number Generator for deterministic board generation
+class SeededRandom {
+  private seed: number
+
+  constructor(seedString: string) {
+    // Convert string seed to number using simple hash
+    this.seed = 0
+    for (let i = 0; i < seedString.length; i++) {
+      const char = seedString.charCodeAt(i)
+      this.seed = ((this.seed << 5) - this.seed) + char
+      this.seed = this.seed & this.seed // Convert to 32-bit integer
+    }
+    // Ensure positive seed
+    if (this.seed <= 0) this.seed = Math.abs(this.seed) + 1
+  }
+
+  // Linear Congruential Generator (LCG)
+  next(): number {
+    // Parameters from Numerical Recipes
+    const a = 1664525
+    const c = 1013904223
+    const m = Math.pow(2, 32)
+    
+    this.seed = (a * this.seed + c) % m
+    return this.seed / m
+  }
+
+  // Pick a random element from an array
+  pick<T>(array: T[]): T {
+    const index = Math.floor(this.next() * array.length)
+    return array[index]
+  }
+
+  // Generate integer between min and max (inclusive)
+  between(min: number, max: number): number {
+    return Math.floor(this.next() * (max - min + 1)) + min
+  }
+}
+
 export class Match3Scene extends Phaser.Scene {
   private grid: (Candy | null)[][] = []
   private gridWidth = 8  // Default, will be overridden by init
   private gridHeight = 8  // Default, will be overridden by init
-  private tileSize = 64
+  private tileSize = 64  // Will be calculated dynamically in create()
   private candyTypes = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']  // Default with all 6 colors
   private selectedCandy: Candy | null = null
   private canMove = false  // Start with moves disabled until data loads
@@ -29,6 +68,8 @@ export class Match3Scene extends Phaser.Scene {
   private attemptToken: string = ''
   private onComplete?: () => void
   private isTestPlay = false
+  private boardSeed: string | null = null
+  private rng: SeededRandom | null = null
 
   constructor() {
     super({ key: 'Match3Scene' })
@@ -43,6 +84,7 @@ export class Match3Scene extends Phaser.Scene {
     gridHeight?: number;
     candyColors?: string[];
     isTestPlay?: boolean;
+    boardSeed?: string;
     onComplete?: () => void 
   }) {
     this.attemptId = data.attemptId
@@ -68,6 +110,15 @@ export class Match3Scene extends Phaser.Scene {
     
     // Set test play flag
     this.isTestPlay = data.isTestPlay || false
+    
+    // Initialize seeded RNG if seed provided
+    this.boardSeed = data.boardSeed || null
+    if (this.boardSeed) {
+      this.rng = new SeededRandom(this.boardSeed)
+      console.log('Using deterministic board with seed:', this.boardSeed)
+    } else {
+      console.log('No board seed provided, using random generation')
+    }
     
     // Adjust tile size based on grid dimensions to fit the screen
     const maxBoardWidth = 550
@@ -128,6 +179,10 @@ export class Match3Scene extends Phaser.Scene {
       }
     })
     
+    // Load sound effects
+    this.load.audio('drop', '/sounds/click.wav')
+    this.load.audio('complete', '/sounds/Sweet.mp3')
+    
     // Add error handling for image loading
     this.load.on('loaderror', (file: any) => {
       console.error('Failed to load:', file.key, file.src)
@@ -168,9 +223,27 @@ export class Match3Scene extends Phaser.Scene {
       return // Stop initialization here
     }
 
+    // Calculate tile size dynamically based on screen size
+    const screenWidth = this.cameras.main.width
+    const screenHeight = this.cameras.main.height
+    const maxBoardWidth = screenWidth - 40 // Leave 20px padding on each side
+    const maxBoardHeight = screenHeight - 200 // Leave space for UI elements
+    
+    // Calculate the tile size that fits both width and height
+    const tileSizeByWidth = Math.floor(maxBoardWidth / this.gridWidth)
+    const tileSizeByHeight = Math.floor(maxBoardHeight / this.gridHeight)
+    
+    // Use the smaller size to ensure the board fits
+    this.tileSize = Math.min(tileSizeByWidth, tileSizeByHeight, 64) // Cap at 64 for desktop
+    
+    // For very small screens, ensure minimum playable size
+    this.tileSize = Math.max(this.tileSize, 32)
+    
     // Center the game board
-    const boardX = (this.cameras.main.width - this.gridWidth * this.tileSize) / 2
-    const boardY = 100
+    const boardWidth = this.gridWidth * this.tileSize
+    const boardHeight = this.gridHeight * this.tileSize
+    const boardX = (screenWidth - boardWidth) / 2
+    const boardY = Math.min(120, (screenHeight - boardHeight) / 2)
 
     // Create background
     this.add.rectangle(
@@ -255,28 +328,48 @@ export class Match3Scene extends Phaser.Scene {
   }
 
   private fillGrid(boardX: number, boardY: number) {
+    // Only used for initial grid setup
     for (let row = 0; row < this.gridHeight; row++) {
       for (let col = 0; col < this.gridWidth; col++) {
         if (!this.grid[row][col]) {
-          const candyType = Phaser.Math.RND.pick(this.candyTypes)
-          const candy = this.createCandy(row, col, candyType, boardX, boardY)
+          const candyType = this.rng ? this.rng.pick(this.candyTypes) : Phaser.Math.RND.pick(this.candyTypes)
+          const candy = this.createCandy(row, col, candyType, boardX, boardY, false) // false = not from above
           this.grid[row][col] = candy
         }
       }
     }
   }
 
-  private createCandy(row: number, col: number, type: string, boardX: number, boardY: number): Candy {
+  private createCandy(row: number, col: number, type: string, boardX: number, boardY: number, spawnFromAbove: boolean = false): Candy {
     const x = boardX + col * this.tileSize + this.tileSize / 2
-    const y = boardY + row * this.tileSize + this.tileSize / 2
+    // If spawning from above, start the candy above the board
+    const y = spawnFromAbove 
+      ? boardY - this.tileSize * 2 // Start 2 tiles above the board
+      : boardY + row * this.tileSize + this.tileSize / 2
     
     const candy = this.add.sprite(x, y, type) as Candy
     candy.row = row
     candy.col = col
     candy.candyType = type
     candy.setInteractive()
-    // Scale down the candy images to fit the tile size (64px)
-    candy.setDisplaySize(56, 56)
+    // Scale candy to fit the dynamic tile size (leaving small padding)
+    const candySize = this.tileSize - 8
+    candy.setDisplaySize(candySize, candySize)
+    
+    return candy
+  }
+
+  private createCandyAtPosition(row: number, col: number, type: string, boardX: number, yPosition: number): Candy {
+    const x = boardX + col * this.tileSize + this.tileSize / 2
+    
+    const candy = this.add.sprite(x, yPosition, type) as Candy
+    candy.row = row
+    candy.col = col
+    candy.candyType = type
+    candy.setInteractive()
+    // Scale candy to fit the dynamic tile size (leaving small padding)
+    const candySize = this.tileSize - 8
+    candy.setDisplaySize(candySize, candySize)
     
     return candy
   }
@@ -287,6 +380,10 @@ export class Match3Scene extends Phaser.Scene {
     let swipeStartY = 0
     const swipeThreshold = 30 // Minimum distance for a swipe
     
+    // Store board position for use in event handlers
+    const boardOffsetX = boardX
+    const boardOffsetY = boardY
+    
     // Handle both tap and swipe
     this.input.on('gameobjectdown', (pointer: Phaser.Input.Pointer, gameObject: Candy) => {
       if (!this.canMove) return
@@ -296,16 +393,10 @@ export class Match3Scene extends Phaser.Scene {
       swipeStartX = pointer.x
       swipeStartY = pointer.y
       
-      // Visual feedback - make candy glow/pulse
-      gameObject.setDisplaySize(64, 64)
-      this.tweens.add({
-        targets: gameObject,
-        scaleX: 1.2,
-        scaleY: 1.2,
-        duration: 100,
-        yoyo: true,
-        ease: 'Power1'
-      })
+      // Visual feedback - subtle scale increase
+      const originalSize = this.tileSize - 8
+      const selectedSize = originalSize * 1.1
+      gameObject.setDisplaySize(selectedSize, selectedSize)
     })
     
     // Handle swipe/drag end
@@ -337,12 +428,13 @@ export class Match3Scene extends Phaser.Scene {
             targetCol >= 0 && targetCol < this.gridWidth) {
           const targetCandy = this.grid[targetRow][targetCol]
           if (targetCandy) {
-            this.swapCandies(swipeStartCandy, targetCandy, boardX, boardY)
+            this.swapCandies(swipeStartCandy, targetCandy, boardOffsetX, boardOffsetY)
           }
         }
         
         // Reset visual
-        swipeStartCandy.setDisplaySize(56, 56)
+        const candySize = this.tileSize - 8
+        swipeStartCandy.setDisplaySize(candySize, candySize)
       } else {
         // It was a tap - handle old click logic for desktop
         if (!this.selectedCandy || this.selectedCandy === swipeStartCandy) {
@@ -354,12 +446,13 @@ export class Match3Scene extends Phaser.Scene {
           const colDiff = Math.abs(this.selectedCandy.col - swipeStartCandy.col)
           
           if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
-            this.swapCandies(this.selectedCandy, swipeStartCandy, boardX, boardY)
+            this.swapCandies(this.selectedCandy, swipeStartCandy, boardOffsetX, boardOffsetY)
           }
           
           // Reset both candies
-          this.selectedCandy.setDisplaySize(56, 56)
-          swipeStartCandy.setDisplaySize(56, 56)
+          const candySize = this.tileSize - 8
+          this.selectedCandy.setDisplaySize(candySize, candySize)
+          swipeStartCandy.setDisplaySize(candySize, candySize)
           this.selectedCandy = null
         }
       }
@@ -371,7 +464,8 @@ export class Match3Scene extends Phaser.Scene {
     // Handle pointer leave (when finger leaves the screen without up event)
     this.input.on('pointerout', () => {
       if (swipeStartCandy) {
-        swipeStartCandy.setDisplaySize(56, 56)
+        const candySize = this.tileSize - 8
+        swipeStartCandy.setDisplaySize(candySize, candySize)
         swipeStartCandy = null
       }
     })
@@ -393,13 +487,15 @@ export class Match3Scene extends Phaser.Scene {
     candy2.row = tempRow
     candy2.col = tempCol
     
-    // Animate swap
-    const duration = 200
+    // Animate swap with smooth easing
+    const duration = 180
+    
     this.tweens.add({
       targets: candy1,
       x: boardX + candy1.col * this.tileSize + this.tileSize / 2,
       y: boardY + candy1.row * this.tileSize + this.tileSize / 2,
-      duration
+      duration,
+      ease: 'Cubic.easeInOut'
     })
     
     this.tweens.add({
@@ -407,6 +503,7 @@ export class Match3Scene extends Phaser.Scene {
       x: boardX + candy2.col * this.tileSize + this.tileSize / 2,
       y: boardY + candy2.row * this.tileSize + this.tileSize / 2,
       duration,
+      ease: 'Cubic.easeInOut',
       onComplete: () => {
         const matches = this.findAllMatches()
         if (matches.length > 0) {
@@ -432,22 +529,37 @@ export class Match3Scene extends Phaser.Scene {
     candy2.row = tempRow
     candy2.col = tempCol
     
-    // Animate swap back
-    const duration = 200
-    this.tweens.add({
-      targets: candy1,
-      x: boardX + candy1.col * this.tileSize + this.tileSize / 2,
-      y: boardY + candy1.row * this.tileSize + this.tileSize / 2,
-      duration
-    })
+    // Animate swap back with a "shake" effect to show invalid move
+    const duration = 150
     
+    // Add a shake effect before swapping back
     this.tweens.add({
-      targets: candy2,
-      x: boardX + candy2.col * this.tileSize + this.tileSize / 2,
-      y: boardY + candy2.row * this.tileSize + this.tileSize / 2,
-      duration,
+      targets: [candy1, candy2],
+      x: '+=5',
+      duration: 50,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.easeInOut',
       onComplete: () => {
-        this.canMove = true
+        // Then swap back with smooth animation
+        this.tweens.add({
+          targets: candy1,
+          x: boardX + candy1.col * this.tileSize + this.tileSize / 2,
+          y: boardY + candy1.row * this.tileSize + this.tileSize / 2,
+          duration,
+          ease: 'Back.easeOut'
+        })
+        
+        this.tweens.add({
+          targets: candy2,
+          x: boardX + candy2.col * this.tileSize + this.tileSize / 2,
+          y: boardY + candy2.row * this.tileSize + this.tileSize / 2,
+          duration,
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            this.canMove = true
+          }
+        })
       }
     })
   }
@@ -526,13 +638,11 @@ export class Match3Scene extends Phaser.Scene {
       candy.destroy()
     })
     
-    // Drop candies down
+    // Drop candies down and fill empty spaces
     this.dropCandies(boardX, boardY)
     
-    // Fill empty spaces
+    // Wait for animations to complete before checking for new matches
     setTimeout(() => {
-      this.fillGrid(boardX, boardY)
-      
       // Check for new matches
       const newMatches = this.findAllMatches()
       if (newMatches.length > 0) {
@@ -541,10 +651,13 @@ export class Match3Scene extends Phaser.Scene {
         this.canMove = true
         this.checkWinCondition()
       }
-    }, 300)
+    }, 500) // Increased delay to ensure animations complete
   }
 
-  private dropCandies(_boardX: number, boardY: number) {
+  private dropCandies(boardX: number, boardY: number) {
+    // First, drop existing candies down to fill empty spaces
+    let droppedCandies: Array<{candy: any, targetY: number, distance: number}> = []
+    
     for (let col = 0; col < this.gridWidth; col++) {
       let emptyRow = this.gridHeight - 1
       
@@ -554,18 +667,68 @@ export class Match3Scene extends Phaser.Scene {
             const candy = this.grid[row][col]!
             this.grid[emptyRow][col] = candy
             this.grid[row][col] = null
+            
+            const targetY = boardY + emptyRow * this.tileSize + this.tileSize / 2
+            const currentY = candy.y
+            const distance = targetY - currentY
+            
             candy.row = emptyRow
             
-            this.tweens.add({
-              targets: candy,
-              y: boardY + emptyRow * this.tileSize + this.tileSize / 2,
-              duration: 200
+            droppedCandies.push({
+              candy,
+              targetY,
+              distance
             })
           }
           emptyRow--
         }
       }
+      
+      // Now fill the remaining empty spaces in this column with new candies
+      for (let row = emptyRow; row >= 0; row--) {
+        const candyType = this.rng ? this.rng.pick(this.candyTypes) : Phaser.Math.RND.pick(this.candyTypes)
+        // Create candy starting from above the board
+        const startY = boardY - (this.tileSize * (emptyRow - row + 2)) // Start higher for top candies
+        const candy = this.createCandyAtPosition(row, col, candyType, boardX, startY)
+        this.grid[row][col] = candy
+        
+        const targetY = boardY + row * this.tileSize + this.tileSize / 2
+        
+        droppedCandies.push({
+          candy,
+          targetY,
+          distance: targetY - startY
+        })
+      }
     }
+    
+    // Animate all dropped candies with bounce effect
+    droppedCandies.forEach(({candy, targetY, distance}, index) => {
+      // Calculate drop duration based on distance (more distance = longer duration)
+      const baseDuration = 100
+      const durationPerTile = 50
+      const tiles = Math.abs(distance / this.tileSize)
+      const dropDuration = baseDuration + (tiles * durationPerTile)
+      
+      // Add slight delay for cascade effect (candies at top drop slightly later)
+      const cascadeDelay = index * 10
+      
+      // Create the drop animation with bounce
+      this.tweens.add({
+        targets: candy,
+        y: targetY,
+        duration: dropDuration,
+        delay: cascadeDelay,
+        ease: 'Bounce.easeOut', // This creates the bounce effect at the end
+        onComplete: () => {
+          // Play drop sound when candy lands
+          this.sound.play('drop', { 
+            volume: 0.3,  // Lower volume since multiple candies might drop
+            detune: Phaser.Math.Between(-200, 200) // Slight pitch variation for variety
+          })
+        }
+      })
+    })
   }
 
   private removeMatches() {
@@ -590,6 +753,12 @@ export class Match3Scene extends Phaser.Scene {
       this.canMove = false
       
       const timeMs = Date.now() - this.startTime
+      
+      // Play completion sound
+      this.sound.play('complete', { 
+        volume: 0.5,
+        delay: 0.2 // Small delay for dramatic effect
+      })
       
       // Show success message immediately
       this.add.text(

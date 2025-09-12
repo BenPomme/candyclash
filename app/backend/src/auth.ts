@@ -26,12 +26,13 @@ function generateAttemptToken(
   challengeId: string,
   attemptId: string,
   startTs: number,
+  boardSeed?: string,
 ): string {
-  const data = `${userId}:${challengeId}:${attemptId}:${startTs}`
+  const data = `${userId}:${challengeId}:${attemptId}:${startTs}:${boardSeed || ''}`
   const hmac = crypto.createHmac('sha256', JWT_SECRET)
   hmac.update(data)
   const signature = hmac.digest('hex')
-  return Buffer.from(JSON.stringify({ userId, challengeId, attemptId, startTs, signature })).toString('base64')
+  return Buffer.from(JSON.stringify({ userId, challengeId, attemptId, startTs, boardSeed, signature })).toString('base64')
 }
 
 function verifyAttemptToken(token: string): {
@@ -39,12 +40,13 @@ function verifyAttemptToken(token: string): {
   challengeId: string
   attemptId: string
   startTs: number
+  boardSeed?: string
 } {
   try {
     const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-    const { userId, challengeId, attemptId, startTs, signature } = decoded
+    const { userId, challengeId, attemptId, startTs, boardSeed, signature } = decoded
     
-    const data = `${userId}:${challengeId}:${attemptId}:${startTs}`
+    const data = `${userId}:${challengeId}:${attemptId}:${startTs}:${boardSeed || ''}`
     const hmac = crypto.createHmac('sha256', JWT_SECRET)
     hmac.update(data)
     const expectedSignature = hmac.digest('hex')
@@ -53,7 +55,7 @@ function verifyAttemptToken(token: string): {
       throw new Error('Invalid attempt token signature')
     }
     
-    return { userId, challengeId, attemptId, startTs }
+    return { userId, challengeId, attemptId, startTs, boardSeed }
   } catch (error) {
     throw new Error('Invalid attempt token')
   }

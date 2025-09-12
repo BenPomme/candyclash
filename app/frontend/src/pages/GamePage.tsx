@@ -61,6 +61,20 @@ export function GamePage() {
     // Add the scene manually (it won't auto-start)
     gameRef.current.scene.add('Match3Scene', Match3Scene, false)
     
+    // Parse board seed from attempt token if available
+    let boardSeed: string | undefined
+    if (!isTestPlay && gameState?.attemptToken) {
+      try {
+        const tokenData = JSON.parse(atob(gameState.attemptToken))
+        boardSeed = tokenData.boardSeed
+        if (boardSeed) {
+          console.log('Found board seed in attempt token:', boardSeed)
+        }
+      } catch (err) {
+        console.error('Failed to parse attempt token:', err)
+      }
+    }
+
     // Start the game scene with validated data
     setTimeout(() => {
       gameRef.current?.scene.start('Match3Scene', {
@@ -71,6 +85,7 @@ export function GamePage() {
         gridWidth: config?.grid?.width || 8,
         gridHeight: config?.grid?.height || 8,
         candyColors: config?.candies?.colors || ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
+        boardSeed,
         isTestPlay,
         onComplete: () => {
           if (isTestPlay) {

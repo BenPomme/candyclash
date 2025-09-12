@@ -7,6 +7,7 @@ const authPlugin = require('./auth').default
 const challengeRoutes = require('./challenge').default
 const attemptRoutes = require('./attempts').default
 const leaderboardRoutes = require('./leaderboard').default
+const globalLeaderboardRoutes = require('./globalLeaderboard').default
 const levelRoutes = require('./levels').default
 const adminRoutes = require('./admin').default
 const feedbackRoutes = require('./feedback').default
@@ -36,6 +37,7 @@ async function buildApp() {
   await fastify.register(challengeRoutes)
   await fastify.register(attemptRoutes)
   await fastify.register(leaderboardRoutes)
+  await fastify.register(globalLeaderboardRoutes)
   await fastify.register(levelRoutes)
   await fastify.register(adminRoutes)
   await fastify.register(feedbackRoutes)
@@ -76,5 +78,9 @@ exports.api = functions.https.onRequest(async (req, res) => {
     res.status(500).send('Internal Server Error')
   })
 })
+
+// Export scheduled functions
+const scheduled = require('./scheduled')
+exports.autoCloseChallenges = scheduled.autoCloseChallenges
 
 export {}

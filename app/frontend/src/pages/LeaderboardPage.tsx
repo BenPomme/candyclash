@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { api } from '../api/client'
+import GlobalLeaderboard from '../components/GlobalLeaderboard'
 
 export function LeaderboardPage() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ export function LeaderboardPage() {
   const [_userRank, setUserRank] = useState<number | null>(null)
   const [closesAt, setClosesAt] = useState<any>(null)
   const [calculatedPrizes, setCalculatedPrizes] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<'daily' | 'global'>('daily')
 
   useEffect(() => {
     if (!user) {
@@ -134,7 +136,34 @@ export function LeaderboardPage() {
         <div className="candy-card mb-6">
           <div className="text-center mb-6">
             <h1 className="text-2xl md:text-3xl font-candy text-candy-pink mb-2">Leaderboard</h1>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-6">
+            
+            {/* Tab Navigation */}
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                <button
+                  onClick={() => setActiveTab('daily')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    activeTab === 'daily'
+                      ? 'bg-white text-candy-pink shadow-md'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Daily Challenge
+                </button>
+                <button
+                  onClick={() => setActiveTab('global')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    activeTab === 'global'
+                      ? 'bg-white text-candy-pink shadow-md'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Global Rankings
+                </button>
+              </div>
+            </div>
+            {activeTab === 'daily' && (
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-6">
               <div>
                 <span className="text-sm text-gray-600">Prize Pool:</span>
                 <span className="text-xl md:text-2xl font-bold text-candy-green ml-2 flex items-center gap-1 inline-flex">
@@ -147,9 +176,12 @@ export function LeaderboardPage() {
                 <span className="text-xl md:text-2xl font-bold text-candy-orange ml-2">{timeLeft}</span>
               </div>
             </div>
+            )}
           </div>
 
-          {isLoading ? (
+          {activeTab === 'global' ? (
+            <GlobalLeaderboard />
+          ) : isLoading ? (
             <div className="text-center py-8">
               <div className="text-2xl font-candy text-candy-pink animate-pulse">Loading...</div>
             </div>

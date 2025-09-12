@@ -91,6 +91,7 @@ const challengeRoutes: any = async (fastify: any) => {
         id: challenge.id,
         name: challenge.name,
         entryFee: challenge.entry_fee,
+        attemptsPerDay: challenge.attempts_per_day,
         endsAt: challenge.ends_at,
         prizeDistribution: challenge.prize_distribution,
       },
@@ -234,12 +235,16 @@ const challengeRoutes: any = async (fastify: any) => {
     })
 
     // Update pot in Realtime Database
-    const { updatePot } = require('./firebase')
+    const { updatePot, updateGlobalStats, incrementGamesPlayed } = require('./firebase')
     await updatePot(challengeId, challenge.entry_fee)
+    
+    // Update global stats - entry fee is a loss
+    await updateGlobalStats(userId, -challenge.entry_fee, user.display_name)
+    await incrementGamesPlayed(userId)
 
-    // Generate attempt token
+    // Generate attempt token with board seed
     const { generateAttemptToken: genToken } = require('./auth')
-    const attemptToken = genToken(userId, challengeId, attemptId, startTs)
+    const attemptToken = genToken(userId, challengeId, attemptId, startTs, challenge.board_seed)
 
     return reply.send({
       attemptId,
